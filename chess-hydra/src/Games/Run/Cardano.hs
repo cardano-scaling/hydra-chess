@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -12,13 +14,16 @@ import Control.Exception (finally)
 import Control.Monad (unless, when, (>=>))
 import Control.Monad.Class.MonadAsync (race)
 import Control.Monad.Class.MonadTimer (threadDelay)
-import Data.Aeson (Value (..), eitherDecode, encode)
+import Data.Aeson (FromJSON, ToJSON, Value (..), eitherDecode, encode)
 import Data.Aeson.KeyMap ((!?))
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text (unpack)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Encoding as Lazy
 import Data.Void (Void)
+import GHC.Generics (Generic)
+import Games.Cardano.Network (Network, cardanoNodeVersion, networkDir, networkMagicArgs)
+import Games.Logging (Logger (..), logWith)
 import Network.HTTP.Simple (getResponseBody, httpLBS, parseRequest)
 import System.Directory (
   Permissions (..),
@@ -34,8 +39,8 @@ import System.Directory (
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.IO (BufferMode (..), Handle, IOMode (..), hSetBuffering, withFile)
-import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), proc, readProcess, terminateProcess, waitForProcess, withCreateProcess)
 import qualified System.Info as System
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), proc, readProcess, terminateProcess, waitForProcess, withCreateProcess)
 
 data CardanoNode = CardanoNode
   { nodeSocket :: FilePath
@@ -43,16 +48,16 @@ data CardanoNode = CardanoNode
   }
   deriving (Show)
 
-data Network = Preview | Preprod | Mainnet
-  deriving stock (Eq, Show, Read)
+data CardanoLog
+  = CardanoNodeLaunching
+  | CardanoNodeSyncing
+  | CardanoNodeFullySynced
+  | CardanoNodeSyncedAt Double
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
-cardanoNodeVersion :: Network -> String
-cardanoNodeVersion Preview = "8.7.1"
-cardanoNodeVersion Preprod = "8.7.1"
-cardanoNodeVersion Mainnet = "8.7.1"
-
-withCardanoNode :: Network -> (CardanoNode -> IO a) -> IO a
-withCardanoNode network k =
+withCardanoNode :: Logger -> Network -> (CardanoNode -> IO a) -> IO a
+withCardanoNode logger network k =
   withLogFile ("cardano-node" </> networkDir network) $ \out -> do
     exe <- findCardanoExecutable (cardanoNodeVersion network)
     socketPath <- findSocketPath network
@@ -70,12 +75,11 @@ withCardanoNode network k =
  where
   waitForNode socketPath cont = do
     let rn = CardanoNode{nodeSocket = socketPath, network}
-    putStr "Cardano node launching "
+    logWith logger CardanoNodeLaunching
     waitForSocket rn
-    putStrLn ""
-    putStr "Cardano node syncing "
-    waitForFullSync rn
-    putStrLn "100%"
+    logWith logger CardanoNodeSyncing
+    waitForFullSync logger rn
+    logWith logger CardanoNodeFullySynced
     cont rn
 
   cleanupSocketFile socketPath = do
@@ -121,10 +125,13 @@ downloadCardanoExecutable :: String -> String -> FilePath -> IO ()
 downloadCardanoExecutable version currentOs destDir = do
   let binariesUrl =
         "https://github.com/intersectMBO/cardano-node/releases/download/"
-          <> version <> "-pre"
+          <> version
+          <> "-pre"
           <> "/cardano-node-"
           <> version
-          <> "-" <> osTag currentOs <> ".tar.gz"
+          <> "-"
+          <> osTag currentOs
+          <> ".tar.gz"
   request <- parseRequest $ "GET " <> binariesUrl
   putStr $ "Downloading cardano executables from " <> binariesUrl
   httpLBS request >>= Tar.unpack destDir . Tar.read . GZip.decompress . getResponseBody
@@ -145,13 +152,13 @@ waitForSocket node@CardanoNode{nodeSocket} = do
     waitForSocket node
 
 -- | Wait for the node to be fully synchronized.
-waitForFullSync :: CardanoNode -> IO ()
-waitForFullSync node = do
+waitForFullSync :: Logger -> CardanoNode -> IO ()
+waitForFullSync logger node = do
   tip <- queryPercentSync node
   unless (tip == 100.0) $ do
-    putStr $ show tip <> "% "
+    logWith logger (CardanoNodeSyncedAt tip)
     threadDelay 10_000_000
-    waitForFullSync node
+    waitForFullSync logger node
 
 queryPercentSync :: CardanoNode -> IO Double
 queryPercentSync CardanoNode{network} = do
@@ -217,18 +224,6 @@ cardanoNodeProcess exe network = do
           , "--socket-path"
           , nodeSocket
           ]
-
-networkDir :: Network -> FilePath
-networkDir = \case
-  Preview -> "preview"
-  Preprod -> "preprod"
-  Mainnet -> "mainnet"
-
-networkMagicArgs :: Network -> [String]
-networkMagicArgs = \case
-  Preview -> ["--testnet-magic", "2"]
-  Preprod -> ["--testnet-magic", "1"]
-  Mainnet -> ["--mainnet"]
 
 withLogFile :: String -> (Handle -> IO a) -> IO a
 withLogFile namespace k = do

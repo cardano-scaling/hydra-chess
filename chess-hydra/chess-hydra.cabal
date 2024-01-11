@@ -25,6 +25,9 @@ library
   hs-source-dirs:  src
   ghc-options:     -Wall -Werror
   exposed-modules:
+    Games.Cardano.Network
+
+    Games.Logging
     Games.Options
     Games.Run
     Games.Run.Cardano

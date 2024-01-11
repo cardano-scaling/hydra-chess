@@ -70,14 +70,12 @@ import qualified Data.Text.Lazy.Encoding as Lazy
 import GHC.Generics (Generic)
 import Game.Client.Console (Coins (..), SimpleUTxO (..), parseQueryUTxO)
 import Game.Server (Host (..))
+import Games.Cardano.Network (Network (..), networkDir, networkMagicArgs)
 import Games.Run.Cardano (
   CardanoNode (..),
-  Network (..),
   checkProcessHasNotDied,
   findCardanoCliExecutable,
   findSocketPath,
-  networkDir,
-  networkMagicArgs,
   withLogFile,
  )
 import Network.HTTP.Simple (getResponseBody, httpLBS, parseRequest)
@@ -268,7 +266,7 @@ registerGameToken network gameSkFile gameVkFile = do
   fundAddress <- getVerificationKeyAddress fundVk network
   gameAddress <- getVerificationKeyAddress gameVk network
 
-  utxo <- getUTxOFor network fundAddress --TODO: check it has enough ADAs
+  utxo <- getUTxOFor network fundAddress -- TODO: check it has enough ADAs
   when (null utxo) $ error "No UTxO with funds"
   let txin =
         mkTxIn $

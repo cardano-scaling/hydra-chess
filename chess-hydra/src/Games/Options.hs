@@ -1,6 +1,6 @@
 module Games.Options where
 
-import Games.Run.Cardano (Network)
+import Games.Cardano.Network (Network)
 import Options.Applicative (
   Parser,
   ParserInfo,

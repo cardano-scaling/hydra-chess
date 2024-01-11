@@ -19,7 +19,9 @@
 
 module Games.Server.Hydra where
 
+import Chess.Data (fromJSONDatum)
 import Chess.Game (Check (..), Side (..))
+import Games.Cardano.Network(Network, networkMagicArgs)
 import qualified Chess.Game as Chess
 import Chess.GameState (ChessGame (..), ChessPlay (..))
 import Chess.Plutus (pubKeyHashFromHex)
@@ -86,7 +88,7 @@ import Game.Server (
   ServerException (..),
  )
 import Game.Server.Mock (MockCoin (..))
-import Games.Run.Cardano (Network, findCardanoCliExecutable, findSocketPath, networkMagicArgs)
+import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
   KeyRole (Game),
   extractCBORHex,
@@ -113,7 +115,6 @@ import System.IO (hClose)
 import System.Posix (mkstemp)
 import System.Process (callProcess)
 import Prelude hiding (seq)
-import Chess.Data (fromJSONDatum)
 
 -- | The type of backend provide by Hydra
 data Hydra
