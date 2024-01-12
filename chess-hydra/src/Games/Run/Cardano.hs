@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -10,7 +11,7 @@ module Games.Run.Cardano where
 
 import qualified Codec.Archive.Tar as Tar
 import qualified Codec.Compression.GZip as GZip
-import Control.Exception (finally)
+import Control.Exception (Exception, finally, throwIO)
 import Control.Monad (unless, when, (>=>))
 import Control.Monad.Class.MonadAsync (race)
 import Control.Monad.Class.MonadTimer (threadDelay)
@@ -20,7 +21,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Text (unpack)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Encoding as Lazy
-import Data.Void (Void)
+import Data.Void (Void, absurd)
 import GHC.Generics (Generic)
 import Games.Cardano.Network (Network, cardanoNodeVersion, networkDir, networkMagicArgs)
 import Games.Logging (Logger (..), logWith)
@@ -52,23 +53,28 @@ data CardanoLog
   = CardanoNodeLaunching
   | CardanoNodeSyncing
   | CardanoNodeFullySynced
-  | CardanoNodeSyncedAt Double
+  | CardanoNodeSyncedAt {percentSynced :: Double}
+  | DownloadingCardanoExecutables {downloadUrl :: String}
+  | DownloadedCardanoExecutables
+  | RetrievedConfigFile { configFile :: FilePath }
+  | WaitingForNodeSocket {socketPath :: FilePath}
+  | LoggingTo {logFile :: FilePath}
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
 withCardanoNode :: Logger -> Network -> (CardanoNode -> IO a) -> IO a
 withCardanoNode logger network k =
-  withLogFile ("cardano-node" </> networkDir network) $ \out -> do
-    exe <- findCardanoExecutable (cardanoNodeVersion network)
+  withLogFile logger ("cardano-node" </> networkDir network) $ \out -> do
+    exe <- findCardanoExecutable logger (cardanoNodeVersion network)
     socketPath <- findSocketPath network
-    process <- cardanoNodeProcess exe network
+    process <- cardanoNodeProcess logger exe network
     withCreateProcess process{std_out = UseHandle out, std_err = UseHandle out} $
       \_stdin _stdout _stderr processHandle ->
         ( race
             (checkProcessHasNotDied network "cardano-node" processHandle)
             (waitForNode socketPath k)
             >>= \case
-              Left{} -> error "should never been reached"
+              Left void -> absurd void
               Right a -> pure a
         )
           `finally` (cleanupSocketFile socketPath >> terminateProcess processHandle)
@@ -76,7 +82,7 @@ withCardanoNode logger network k =
   waitForNode socketPath cont = do
     let rn = CardanoNode{nodeSocket = socketPath, network}
     logWith logger CardanoNodeLaunching
-    waitForSocket rn
+    waitForSocket logger rn
     logWith logger CardanoNodeSyncing
     waitForFullSync logger rn
     logWith logger CardanoNodeFullySynced
@@ -92,8 +98,8 @@ findSocketPath network = do
   createDirectoryIfMissing True socketDir
   pure $ socketDir </> "node.socket"
 
-findCardanoExecutable :: String -> IO FilePath
-findCardanoExecutable version = do
+findCardanoExecutable :: Logger -> String -> IO FilePath
+findCardanoExecutable logger version = do
   let currentOS = System.os
   dataDir <- getXdgDirectory XdgData "cardano"
   createDirectoryIfMissing True dataDir
@@ -104,7 +110,7 @@ findCardanoExecutable version = do
       then (== version) <$> getVersion cardanoExecutable
       else pure True
   when (not exists || not hasRightVersion) $ do
-    downloadCardanoExecutable version currentOS dataDir
+    downloadCardanoExecutable logger version currentOS dataDir
     permissions <- getPermissions cardanoExecutable
     unless (executable permissions) $ setPermissions cardanoExecutable (setOwnerExecutable True permissions)
   pure cardanoExecutable
@@ -121,8 +127,8 @@ findCardanoCliExecutable = do
   unless (executable permissions) $ setPermissions cardanoCliExecutable (setOwnerExecutable True permissions)
   pure cardanoCliExecutable
 
-downloadCardanoExecutable :: String -> String -> FilePath -> IO ()
-downloadCardanoExecutable version currentOs destDir = do
+downloadCardanoExecutable :: Logger -> String -> String -> FilePath -> IO ()
+downloadCardanoExecutable logger version currentOs destDir = do
   let binariesUrl =
         "https://github.com/intersectMBO/cardano-node/releases/download/"
           <> version
@@ -133,9 +139,9 @@ downloadCardanoExecutable version currentOs destDir = do
           <> osTag currentOs
           <> ".tar.gz"
   request <- parseRequest $ "GET " <> binariesUrl
-  putStr $ "Downloading cardano executables from " <> binariesUrl
+  logWith logger (DownloadingCardanoExecutables binariesUrl)
   httpLBS request >>= Tar.unpack destDir . Tar.read . GZip.decompress . getResponseBody
-  putStrLn " done"
+  logWith logger DownloadedCardanoExecutables
 
 osTag :: String -> String
 osTag = \case
@@ -143,13 +149,13 @@ osTag = \case
   other -> other
 
 -- | Wait for the node socket file to become available.
-waitForSocket :: CardanoNode -> IO ()
-waitForSocket node@CardanoNode{nodeSocket} = do
+waitForSocket :: Logger -> CardanoNode -> IO ()
+waitForSocket logger node@CardanoNode{nodeSocket} = do
   exists <- doesFileExist nodeSocket
   unless exists $ do
-    putStr "."
+    logWith logger (WaitingForNodeSocket nodeSocket)
     threadDelay 1_000_000
-    waitForSocket node
+    waitForSocket logger node
 
 -- | Wait for the node to be fully synchronized.
 waitForFullSync :: Logger -> CardanoNode -> IO ()
@@ -167,7 +173,7 @@ queryPercentSync CardanoNode{network} = do
   out <-
     (eitherDecode >=> extractSyncPercent) . Lazy.encodeUtf8 . LT.pack
       <$> readProcess cardanoCliExe (["query", "tip", "--socket-path", socketPath] <> networkMagicArgs network) ""
-  either error pure out
+  either (throwIO . userError) pure out
 
 extractSyncPercent :: Value -> Either String Double
 extractSyncPercent = \case
@@ -177,8 +183,8 @@ extractSyncPercent = \case
       _ -> Left "Did not find 'syncProgress' field"
   v -> Left $ "query returned something odd: " <> LT.unpack (Lazy.decodeUtf8 $ encode v)
 
-findConfigFiles :: Network -> IO (FilePath, FilePath)
-findConfigFiles network = do
+findConfigFiles :: Logger -> Network -> IO (FilePath, FilePath)
+findConfigFiles logger network = do
   let nodeConfig = "config.json"
       nodeTopology = "topology.json"
       nodeByronGenesis = "byron-genesis.json"
@@ -203,12 +209,12 @@ findConfigFiles network = do
     request <- parseRequest $ "GET " <> envUrl </> config
     let configFile = configDir </> config
     httpLBS request >>= LBS.writeFile configFile . getResponseBody
-    putStrLn $ "Retrieved " <> configFile
+    logWith logger (RetrievedConfigFile configFile)
 
 -- | Generate command-line arguments for launching @cardano-node@.
-cardanoNodeProcess :: FilePath -> Network -> IO CreateProcess
-cardanoNodeProcess exe network = do
-  (nodeConfigFile, nodeTopologyFile) <- findConfigFiles network
+cardanoNodeProcess :: Logger -> FilePath -> Network -> IO CreateProcess
+cardanoNodeProcess logger exe network = do
+  (nodeConfigFile, nodeTopologyFile) <- findConfigFiles logger network
   nodeDatabaseDir <- getXdgDirectory XdgData ("cardano" </> networkDir network)
   createDirectoryIfMissing True nodeDatabaseDir
   nodeSocket <- findSocketPath network
@@ -225,10 +231,10 @@ cardanoNodeProcess exe network = do
           , nodeSocket
           ]
 
-withLogFile :: String -> (Handle -> IO a) -> IO a
-withLogFile namespace k = do
+withLogFile :: Logger -> String -> (Handle -> IO a) -> IO a
+withLogFile logger namespace k = do
   logFile <- findLogFile namespace
-  putStrLn ("Logfile written to: " <> logFile)
+  logWith logger (LoggingTo logFile)
   withFile logFile AppendMode (\out -> hSetBuffering out NoBuffering >> k out)
 
 findLogFile :: String -> IO FilePath
@@ -237,9 +243,16 @@ findLogFile namespace = do
   createDirectoryIfMissing True logDir
   pure $ logDir </> "node.log"
 
+data ProcessExit
+  = ProcessExited {processName :: String}
+  | ProcessDied {processName :: String, exitCode :: Int, logFile :: FilePath}
+  deriving stock (Show)
+
+instance Exception ProcessExit
+
 checkProcessHasNotDied :: Network -> String -> ProcessHandle -> IO Void
 checkProcessHasNotDied network name processHandle = do
   logFile <- findLogFile (name </> networkDir network)
   waitForProcess processHandle >>= \case
-    ExitSuccess -> error "Process has died"
-    ExitFailure exit -> error $ "Process " <> show name <> " exited with failure code: " <> show exit <> ", check logs in " <> logFile
+    ExitSuccess -> throwIO (ProcessExited name)
+    ExitFailure exit -> throwIO (ProcessDied name exit logFile)

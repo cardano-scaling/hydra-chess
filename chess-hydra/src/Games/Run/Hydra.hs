@@ -101,6 +101,7 @@ import System.Process (
   readProcess,
   withCreateProcess,
  )
+import Games.Logging (Logger)
 
 data HydraNode = HydraNode
   { hydraParty :: VerKeyDSIGN Ed25519DSIGN
@@ -111,9 +112,9 @@ data HydraNode = HydraNode
 version :: String
 version = "0.14.0"
 
-withHydraNode :: CardanoNode -> (HydraNode -> IO a) -> IO a
-withHydraNode CardanoNode{network, nodeSocket} k =
-  withLogFile ("hydra-node" </> networkDir network) $ \out -> do
+withHydraNode :: Logger -> CardanoNode -> (HydraNode -> IO a) -> IO a
+withHydraNode logger CardanoNode{network, nodeSocket} k =
+  withLogFile logger ("hydra-node" </> networkDir network) $ \out -> do
     exe <- findHydraExecutable
     (me, process) <- hydraNodeProcess network exe nodeSocket
     withCreateProcess process{std_out = UseHandle out, std_err = UseHandle out} $
