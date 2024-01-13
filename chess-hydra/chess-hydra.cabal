@@ -32,6 +32,7 @@ library
     Games.Run
     Games.Run.Cardano
     Games.Run.Hydra
+    Games.Terminal
 
     Games.Server.Hydra
     Games.Server.IO
