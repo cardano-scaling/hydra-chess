@@ -54,8 +54,8 @@ data CardanoLog
   | CardanoNodeSyncing
   | CardanoNodeFullySynced
   | CardanoNodeSyncedAt {percentSynced :: Double}
-  | DownloadingCardanoExecutables {downloadUrl :: String}
-  | DownloadedCardanoExecutables
+  | DownloadingExecutables {downloadUrl :: String}
+  | DownloadedExecutables { destination :: FilePath }
   | RetrievedConfigFile { configFile :: FilePath }
   | WaitingForNodeSocket {socketPath :: FilePath}
   | LoggingTo {logFile :: FilePath}
@@ -139,9 +139,9 @@ downloadCardanoExecutable logger version currentOs destDir = do
           <> osTag currentOs
           <> ".tar.gz"
   request <- parseRequest $ "GET " <> binariesUrl
-  logWith logger (DownloadingCardanoExecutables binariesUrl)
+  logWith logger (DownloadingExecutables binariesUrl)
   httpLBS request >>= Tar.unpack destDir . Tar.read . GZip.decompress . getResponseBody
-  logWith logger DownloadedCardanoExecutables
+  logWith logger $ DownloadedExecutables destDir
 
 osTag :: String -> String
 osTag = \case

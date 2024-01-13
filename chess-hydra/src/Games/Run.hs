@@ -37,6 +37,6 @@ run = do
   startServers logger cardano@CardanoNode{network} =
     withHydraNode logger cardano $ \HydraNode{hydraParty, hydraHost} -> do
       let party = HydraParty $ serialize' hydraParty
-      withHydraServer network party hydraHost $ \server -> do
+      withHydraServer logger network party hydraHost $ \server -> do
         putStrLn $ "Starting client for " <> show party <> " and host " <> show hydraHost
         runClient @Chess @_ @_ server notifyChessEvent (mkImpureIO inputParser)

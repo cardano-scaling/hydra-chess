@@ -21,7 +21,6 @@ module Games.Server.Hydra where
 
 import Chess.Data (fromJSONDatum)
 import Chess.Game (Check (..), Side (..))
-import Games.Cardano.Network(Network, networkMagicArgs)
 import qualified Chess.Game as Chess
 import Chess.GameState (ChessGame (..), ChessPlay (..))
 import Chess.Plutus (pubKeyHashFromHex)
@@ -88,6 +87,8 @@ import Game.Server (
   ServerException (..),
  )
 import Game.Server.Mock (MockCoin (..))
+import Games.Cardano.Network (Network, networkMagicArgs)
+import Games.Logging (Logger)
 import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
   KeyRole (Game),
@@ -159,8 +160,8 @@ data InvalidMove
   | UTxOError Text
   deriving (Eq, Show, Exception)
 
-withHydraServer :: Network -> HydraParty -> Host -> (Server Chess.Game Hydra IO -> IO ()) -> IO ()
-withHydraServer network me host k = do
+withHydraServer :: Logger -> Network -> HydraParty -> Host -> (Server Chess.Game Hydra IO -> IO ()) -> IO ()
+withHydraServer logger network me host k = do
   events <- newTVarIO mempty
   replaying <- newTVarIO True
   withClient host $ \cnx ->
@@ -215,8 +216,7 @@ withHydraServer network me host k = do
             HeadIsClosed{} -> pure ()
             ReadyToFanout headId ->
               atomically (modifyTVar' events (|> HeadClosing headId))
-            GetUTxOResponse{utxo} -> do
-              putStrLn "UtxO response"
+            GetUTxOResponse{utxo} ->
               atomically (modifyTVar' events (|> OtherMessage (JsonContent utxo)))
             RolledBack{} -> pure ()
             TxValid{} -> pure ()
@@ -363,7 +363,7 @@ withHydraServer network me host k = do
 
       -- find game token UTxO
       gameAddress <- getVerificationKeyAddress vkFile network
-      gameUTxO <- getUTxOFor network gameAddress
+      gameUTxO <- getUTxOFor logger network gameAddress
       let gameToken = rights . fmap (parseQueryUTxO . pack) $ gameUTxO
 
       -- FIXME: Need to find the correct game token otherwise splitting won't work

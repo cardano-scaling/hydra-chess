@@ -1,10 +1,27 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Games.Cardano.Network where
 
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (String), withText)
+import Data.Text (unpack)
+
 data Network = Preview | Preprod | Mainnet
   deriving stock (Eq, Show, Read)
+
+instance ToJSON Network where
+  toJSON = \case
+    Preview -> String "preview"
+    Preprod -> String "preprod"
+    Mainnet -> String "mainnet"
+
+instance FromJSON Network where
+  parseJSON = withText "Network" $ \case
+    "preview" -> pure Preview
+    "preprod" -> pure Preprod
+    "mainnet" -> pure Mainnet
+    other -> fail $ "Unknown network " <> unpack other
 
 cardanoNodeVersion :: Network -> String
 cardanoNodeVersion Preview = "8.7.1"

@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -8,7 +9,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Games.Run.Hydra where
@@ -40,6 +40,7 @@ import Chess.Plutus (
 import qualified Chess.Token as Token
 import qualified Codec.Archive.Zip as Zip
 import Codec.CBOR.Read (deserialiseFromBytes)
+import Control.Exception (throwIO)
 import Control.Monad (unless, when)
 import Control.Monad.Class.MonadAsync (race)
 import Control.Monad.Class.MonadTimer (threadDelay)
@@ -71,7 +72,9 @@ import GHC.Generics (Generic)
 import Game.Client.Console (Coins (..), SimpleUTxO (..), parseQueryUTxO)
 import Game.Server (Host (..))
 import Games.Cardano.Network (Network (..), networkDir, networkMagicArgs)
+import Games.Logging (Logger, logWith)
 import Games.Run.Cardano (
+  CardanoLog (DownloadedExecutables, DownloadingExecutables),
   CardanoNode (..),
   checkProcessHasNotDied,
   findCardanoCliExecutable,
@@ -101,7 +104,6 @@ import System.Process (
   readProcess,
   withCreateProcess,
  )
-import Games.Logging (Logger)
 
 data HydraNode = HydraNode
   { hydraParty :: VerKeyDSIGN Ed25519DSIGN
@@ -112,17 +114,30 @@ data HydraNode = HydraNode
 version :: String
 version = "0.14.0"
 
+data HydraLog
+  = HydraNodeStarted
+  | CheckingGameToken {publicKeyHash :: String, address :: String}
+  | NoGameTokenRegistered {address :: String, network :: Network}
+  | WaitForTokenRegistration {token :: String}
+  | QueryingUtxo {address :: String}
+  | BuildingTransaction {file :: FilePath, args :: [String]}
+  | SubmittedTransaction {file :: FilePath}
+  | UsingPeersFile {file :: FilePath}
+  | NoPeersDefined
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
 withHydraNode :: Logger -> CardanoNode -> (HydraNode -> IO a) -> IO a
 withHydraNode logger CardanoNode{network, nodeSocket} k =
   withLogFile logger ("hydra-node" </> networkDir network) $ \out -> do
-    exe <- findHydraExecutable
-    (me, process) <- hydraNodeProcess network exe nodeSocket
+    exe <- findHydraExecutable logger
+    (me, process) <- hydraNodeProcess logger network exe nodeSocket
     withCreateProcess process{std_out = UseHandle out, std_err = UseHandle out} $
       \_stdin _stdout _stderr processHandle ->
         race
           (checkProcessHasNotDied network "hydra-node" processHandle)
           ( do
-              putStrLn "Hydra node started"
+              logWith logger HydraNodeStarted
               k (HydraNode me (Host "127.0.0.1" 34567))
           )
           >>= \case
@@ -137,22 +152,22 @@ findHydraScriptsTxId = \case
   Preprod -> pure "d8ba8c488f52228b200df48fe28305bc311d0507da2c2420b10835bf00d21948"
   Mainnet -> pure "3ac58d3f9f35d8f2cb38d39639232c10cfe0b986728f672d26ffced944d74560"
 
-hydraNodeProcess :: Network -> FilePath -> FilePath -> IO (VerKeyDSIGN Ed25519DSIGN, CreateProcess)
-hydraNodeProcess network executableFile nodeSocket = do
-  (me, hydraSkFile) <- findHydraSigningKey network
+hydraNodeProcess :: Logger -> Network -> FilePath -> FilePath -> IO (VerKeyDSIGN Ed25519DSIGN, CreateProcess)
+hydraNodeProcess logger network executableFile nodeSocket = do
+  (me, hydraSkFile) <- findHydraSigningKey logger network
 
   (cardanoSkFile, cardanoVkFile) <- findKeys Fuel network
-  checkFundsAreAvailable network cardanoSkFile cardanoVkFile
+  checkFundsAreAvailable logger network cardanoSkFile cardanoVkFile
 
   (gameSkFile, gameVkFile) <- findKeys Game network
-  checkGameTokenIsAvailable network gameSkFile gameVkFile
+  checkGameTokenIsAvailable logger network gameSkFile gameVkFile
 
   protocolParametersFile <- findProtocolParametersFile network
   hydraPersistenceDir <- findHydraPersistenceDir network
   hydraScriptsTxId <- findHydraScriptsTxId network
 
   -- peers
-  peers <- findPeers network
+  peers <- findPeers logger network
   peerArguments <- concat <$> mapM (peerArgument network) peers
 
   let
@@ -191,12 +206,12 @@ hydraNodeProcess network executableFile nodeSocket = do
       )
   pure (me, proc executableFile args)
 
-checkGameTokenIsAvailable :: Network -> FilePath -> FilePath -> IO ()
-checkGameTokenIsAvailable network gameSkFile gameVkFile = do
+checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO ()
+checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
   pkh <- findPubKeyHash gameVkFile
   let token = "1 " <> Token.validatorHashHex <.> pkh
   gameAddress <- getVerificationKeyAddress gameVkFile network
-  putStrLn $ "Checking game token for " <> pkh <> " @ " <> gameAddress
+  logWith logger (CheckingGameToken pkh gameAddress)
   hasToken token gameAddress >>= \case
     Just{} -> pure ()
     Nothing -> do
@@ -205,18 +220,18 @@ checkGameTokenIsAvailable network gameSkFile gameVkFile = do
       -- way that it's only started when the player wants to play, which means the
       -- controller knows there's an ongoing game it does not try to recreate a game
       -- token
-      putStrLn $ "No game token registered on " <> show network <> ", creating it"
-      registerGameToken network gameSkFile gameVkFile
+      logWith logger (NoGameTokenRegistered gameAddress network)
+      registerGameToken logger network gameSkFile gameVkFile
       waitForToken token gameAddress
  where
   waitForToken token gameAddress = do
-    putStrLn $ "Wait for token creation tx"
+    logWith logger (WaitForTokenRegistration token)
     threadDelay 10_000_000
     hasToken token gameAddress
       >>= maybe (waitForToken token gameAddress) (const $ pure ())
 
   hasToken token gameAddress = do
-    getUTxOFor network gameAddress
+    getUTxOFor logger network gameAddress
       >>= pure . \case
         [] -> Nothing
         utxos ->
@@ -224,16 +239,16 @@ checkGameTokenIsAvailable network gameSkFile gameVkFile = do
             utxo : _ -> Just utxo -- FIXME: can there be multiple game tokens?
             [] -> Nothing
 
-hasOutputAt :: Network -> String -> IO (Maybe String)
-hasOutputAt network address = do
-  output <- getUTxOFor network address
+hasOutputAt :: Logger -> Network -> String -> IO (Maybe String)
+hasOutputAt logger network address = do
+  output <- getUTxOFor logger network address
   if (length output == 1)
     then pure $ Just $ head output
     else pure Nothing
 
-getUTxOFor :: Network -> String -> IO [String]
-getUTxOFor network address = do
-  putStrLn $ "Querying utxo for " <> address
+getUTxOFor :: Logger -> Network -> String -> IO [String]
+getUTxOFor logger network address = do
+  logWith logger $ QueryingUtxo address
   cardanoCliExe <- findCardanoCliExecutable
   socketPath <- findSocketPath network
   drop 2 . lines
@@ -260,15 +275,15 @@ getScriptAddress vkFile network = do
   cardanoCliExe <- findCardanoCliExecutable
   readProcess cardanoCliExe (["address", "build", "--payment-script-file", vkFile] <> networkMagicArgs network) ""
 
-registerGameToken :: Network -> FilePath -> FilePath -> IO ()
-registerGameToken network gameSkFile gameVkFile = do
+registerGameToken :: Logger -> Network -> FilePath -> FilePath -> IO ()
+registerGameToken logger network gameSkFile gameVkFile = do
   (fundSk, fundVk) <- findKeys Fuel network
   (gameSk, gameVk) <- findKeys Game network
   fundAddress <- getVerificationKeyAddress fundVk network
   gameAddress <- getVerificationKeyAddress gameVk network
 
-  utxo <- getUTxOFor network fundAddress -- TODO: check it has enough ADAs
-  when (null utxo) $ error "No UTxO with funds"
+  utxo <- getUTxOFor logger network fundAddress -- TODO: check it has enough ADAs
+  when (null utxo) $ throwIO (userError "No UTxO with funds")
   let txin =
         mkTxIn $
           List.maximumBy (compare `on` totalLovelace) $
@@ -311,7 +326,7 @@ registerGameToken network gameSkFile gameVkFile = do
         ]
           <> networkMagicArgs network
 
-  putStrLn $ "Building transaction " <> (txFileRaw <.> "raw") <> " with arguments: " <> unwords args
+  logWith logger $ BuildingTransaction (txFileRaw <.> "raw") args
 
   callProcess cardanoCliExe args
 
@@ -328,8 +343,6 @@ registerGameToken network gameSkFile gameVkFile = do
       ]
       <> networkMagicArgs network
 
-  putStrLn $ "Sign token creation tx " <> (txFileRaw <.> "signed")
-
   callProcess
     cardanoCliExe
     $ [ "transaction"
@@ -341,7 +354,7 @@ registerGameToken network gameSkFile gameVkFile = do
       ]
       <> networkMagicArgs network
 
-  putStrLn $ "Submitted token creation tx"
+  logWith logger $ SubmittedTransaction (txFileRaw <.> "signed")
 
 findPubKeyHash :: FilePath -> IO String
 findPubKeyHash vkFile =
@@ -405,10 +418,10 @@ mkTxIn =
     SimpleUTxO{txIn} -> txIn
     UTxOWithDatum{txIn} -> txIn
 
-checkFundsAreAvailable :: Network -> FilePath -> FilePath -> IO ()
-checkFundsAreAvailable network signingKeyFile verificationKeyFile = do
+checkFundsAreAvailable :: Logger -> Network -> FilePath -> FilePath -> IO ()
+checkFundsAreAvailable logger network signingKeyFile verificationKeyFile = do
   ownAddress <- getVerificationKeyAddress verificationKeyFile network
-  output <- getUTxOFor network ownAddress
+  output <- getUTxOFor logger network ownAddress
   let maxLovelaceAvailable =
         if null output
           then 0
@@ -417,7 +430,7 @@ checkFundsAreAvailable network signingKeyFile verificationKeyFile = do
     putStrLn $
       "Hydra needs some funds to fuel the process, please ensure there's a UTxO with at least 10 ADAs at " <> ownAddress
     threadDelay 60_000_000
-    checkFundsAreAvailable network signingKeyFile verificationKeyFile
+    checkFundsAreAvailable logger network signingKeyFile verificationKeyFile
 
 totalLovelace :: SimpleUTxO -> Integer
 totalLovelace = \case
@@ -427,14 +440,14 @@ totalLovelace = \case
 ed25519seedsize :: Word
 ed25519seedsize = seedSizeDSIGN (Proxy @Ed25519DSIGN)
 
-findHydraSigningKey :: Network -> IO (VerKeyDSIGN Ed25519DSIGN, FilePath)
-findHydraSigningKey network = do
+findHydraSigningKey :: Logger -> Network -> IO (VerKeyDSIGN Ed25519DSIGN, FilePath)
+findHydraSigningKey logger network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   createDirectoryIfMissing True configDir
   let hydraSk = configDir </> "hydra.sk"
   exists <- doesFileExist hydraSk
   unless exists $ do
-    exe <- findHydraExecutable
+    exe <- findHydraExecutable logger
     callProcess exe ["gen-hydra-key", "--output-file", configDir </> "hydra"]
 
   sk <- deserialiseFromEnvelope @(SignKeyDSIGN Ed25519DSIGN) hydraSk
@@ -446,10 +459,10 @@ deserialiseFromEnvelope file = do
   case Hex.decode (encodeUtf8 cborHex) of
     Right bs ->
       either
-        (\err -> error $ "Failed to deserialised key from " <> show bs <> " : " <> show err)
+        (\err -> throwIO $ userError ("Failed to deserialised key from " <> show bs <> " : " <> show err))
         (pure . snd)
         $ deserialiseFromBytes @a fromCBOR (LBS.fromStrict bs)
-    Left err -> error $ "Failed to deserialise key from " <> unpack cborHex <> " : " <> err
+    Left err -> throwIO $ userError ("Failed to deserialise key from " <> unpack cborHex <> " : " <> err)
 
 extractCBORHex :: FilePath -> IO Text
 extractCBORHex file = do
@@ -518,7 +531,7 @@ findProtocolParametersFile network = do
       eitherDecode . Lazy.encodeUtf8 . LT.pack
         <$> readProcess cardanoCliExe (["query", "protocol-parameters", "--socket-path", socketPath] <> networkMagicArgs network) ""
     either
-      (\err -> error $ "Failed to extract protocol parameters: " <> show err)
+      (\err -> throwIO $ userError ("Failed to extract protocol parameters: " <> show err))
       (LBS.writeFile hydraSk . encode)
       (mkZeroFeeParams <$> out)
   pure hydraSk
@@ -568,20 +581,19 @@ mkZeroFeeParams = \case
 
   one_trillion = Number 1_000_000_000_000
 
-findHydraExecutable :: IO FilePath
-findHydraExecutable = do
+findHydraExecutable :: Logger -> IO FilePath
+findHydraExecutable logger = do
   dataDir <- getXdgDirectory XdgData "hydra"
   createDirectoryIfMissing True dataDir
   let hydraExecutable = dataDir </> "hydra-node"
   exists <- doesFileExist hydraExecutable
-  unless exists $ downloadHydraExecutable dataDir
+  unless exists $ downloadHydraExecutable logger dataDir
   permissions <- getPermissions hydraExecutable
   unless (executable permissions) $ setPermissions hydraExecutable (setOwnerExecutable True permissions)
   pure hydraExecutable
 
-downloadHydraExecutable :: FilePath -> IO ()
-downloadHydraExecutable destDir = do
-  -- TODO: generalise URL when binaries are published
+downloadHydraExecutable :: Logger -> FilePath -> IO ()
+downloadHydraExecutable logger destDir = do
   let binariesUrl =
         "https://github.com/input-output-hk/hydra/releases/download/"
           <> version
@@ -593,9 +605,9 @@ downloadHydraExecutable destDir = do
           <> version
           <> ".zip"
   request <- parseRequest $ "GET " <> binariesUrl
-  putStr $ "Downloading hydra executables: " <> binariesUrl
+  logWith logger $ DownloadingExecutables binariesUrl
   httpLBS request >>= Zip.extractFilesFromArchive [Zip.OptDestination destDir] . Zip.toArchive . getResponseBody
-  putStrLn " done"
+  logWith logger $ DownloadedExecutables destDir
 
 mkTempFile :: IO FilePath
 mkTempFile = mkstemp "tx.raw." >>= \(fp, hdl) -> hClose hdl >> pure fp
@@ -651,16 +663,16 @@ peerArgument network Peer{name, cardanoKey, hydraKey, address = Host{host, port}
 
 -- TODO: should detect the peers configuration has changed and not reuse the same
 -- state
-findPeers :: Network -> IO [Peer]
-findPeers network = do
+findPeers :: Logger -> Network -> IO [Peer]
+findPeers logger network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   createDirectoryIfMissing True configDir
   let peersFile = configDir </> "peers.json"
   exists <- doesFileExist peersFile
   if exists
     then do
-      putStrLn $ "Using peers file " <> peersFile
-      maybe (error $ "Failed to decode peers file " <> peersFile) pure =<< decodeFileStrict' peersFile
+      logWith logger $ UsingPeersFile peersFile
+      maybe (throwIO $ userError $ "Failed to decode peers file " <> peersFile) pure =<< decodeFileStrict' peersFile
     else do
-      putStrLn "No peers defined"
+      logWith logger NoPeersDefined
       pure []
