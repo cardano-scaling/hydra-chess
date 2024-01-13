@@ -34,13 +34,13 @@ instance Render Game where
             else black (character (pieceAt (Pos r c) game))
         raws = reverse $ splitEvery 8 allPos
         rows = zipWith (\cs n -> intToDigit n : ' ' : concat cs) raws [8, 7 .. 1]
-     in Text.unlines ((Text.pack <$> rows) <> ["  abcdefgh"])
+     in Text.unlines ((Text.pack <$> rows) <> ["  a b c d e f g h "])
 
 black :: Char -> [Char]
-black s = "\ESC[38;5;0m\ESC[48;2;199;132;67m" <> [s] <> "\ESC[0m"
+black s = "\ESC[38;5;0m\ESC[48;2;199;132;67m" <> [s, ' '] <> "\ESC[0m"
 
 white :: Char -> [Char]
-white s = "\ESC[38;5;0m\ESC[48;2;240;194;148m" <> [s] <> "\ESC[0m"
+white s = "\ESC[38;5;0m\ESC[48;2;240;194;148m" <> [s, ' '] <> "\ESC[0m"
 
 splitEvery :: Int -> [a] -> [[a]]
 splitEvery _ [] = []
