@@ -205,9 +205,9 @@ withHydraServer logger network me host k = do
               , closeHead = sendClose cnx events
               }
        in do
-        link thread
-        logWith logger GameServerStarted
-        k server
+            link thread
+            logWith logger GameServerStarted
+            k server
  where
   pullEventsFromWs :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> TVar IO Bool -> IO ()
   pullEventsFromWs events cnx replaying = do
@@ -374,10 +374,12 @@ withHydraServer logger network me host k = do
           HeadCreated headId _ -> Just headId
           _ -> Nothing
       )
-      >>= maybe (throwIO $ ServerException "Timeout (10m) waiting for head Id") pure
+      >>= maybe
+        (throwIO $ ServerException "Timeout (10m) waiting for head Id")
+        (\ headId -> sendCommit cnx events host 100 headId >> pure headId)
 
   sendCommit :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> Host -> Integer -> HeadId -> IO ()
-  sendCommit cnx events Host{host, port} amount headId =
+  sendCommit cnx events Host{host, port} _amount headId =
     try go >>= \case
       Left (err :: CommitError) -> logWith logger err
       Right{} -> pure ()

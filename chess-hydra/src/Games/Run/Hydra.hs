@@ -123,7 +123,7 @@ data HydraLog
   | WaitForTokenRegistration {token :: String}
   | QueryingUtxo {address :: String}
   | BuildingTransaction {file :: FilePath, args :: [String]}
-  | CardanoCliOutput {executable :: FilePath, output :: String}
+  | CardanoCliOutput {file :: FilePath, output :: String}
   | SubmittedTransaction {file :: FilePath}
   | UsingPeersFile {file :: FilePath}
   | NoPeersDefined
