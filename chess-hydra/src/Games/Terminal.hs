@@ -35,7 +35,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Yellow
             ]
-          hPutStr stdout "Cardano|Launching"
+          hPutStr stdout "Cardano|Launching "
           setSGR [Reset]
           setSGR
             [ SetColor Foreground Dull Yellow
@@ -49,7 +49,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Red
             ]
-          hPutStr stdout "Cardano|Syncing  "
+          hPutStr stdout "Cardano|Syncing   "
           setSGR [Reset]
           setSGR
             [ SetColor Foreground Dull Red
@@ -63,13 +63,14 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout "Cardano|Synced   "
+          hPutStr stdout "Cardano|Synced    "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]
           hPutStr stdout "\x25b6"
           setSGR [Reset]
           hPutStr stdout "\n"
+        -- Hydra startup
         Just "HydraNodeStarting" -> do
           hCursorBackward stdout 1000
           setSGR
@@ -77,7 +78,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Yellow
             ]
-          hPutStr stdout "Hydra  |Starting "
+          hPutStr stdout "Hydra  |Starting  "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Yellow]
@@ -90,7 +91,48 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout "Hydra  |Started  "
+          hPutStr stdout "Hydra  |Started   "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Green]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+          hPutStr stdout "\n"
+        -- Game server startup
+        Just "GameServerStarting" -> do
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Yellow
+            ]
+          hPutStr stdout "Chess  |Starting  "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Yellow]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "ConnectingToHydra" -> do
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Red
+            ]
+          hPutStr stdout "Chess  |Connecting"
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Red]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "ConnectedToHydra" -> do
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Green
+            ]
+          hPutStr stdout "Chess  |Connected "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]

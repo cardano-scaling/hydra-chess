@@ -88,9 +88,10 @@ import Game.Server (
  )
 import Game.Server.Mock (MockCoin (..))
 import Games.Cardano.Network (Network, networkMagicArgs)
-import Games.Logging (Logger)
+import Games.Logging (Logger, logWith)
 import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
+  HydraLog (BuildingTransaction, SubmittedTransaction),
   KeyRole (Game),
   extractCBORHex,
   findDatumFile,
@@ -152,6 +153,10 @@ instance IsChain Hydra where
 data CommitError = CommitError String
   deriving (Eq, Show, Exception)
 
+instance ToJSON CommitError where
+  toJSON (CommitError msg) =
+    object ["tag" .= ("CommitError" :: Text), "error" .= msg]
+
 type GameTokens = [(String, String, Integer)]
 
 data InvalidMove
@@ -160,11 +165,35 @@ data InvalidMove
   | UTxOError Text
   deriving (Eq, Show, Exception)
 
+type GameToken =
+  ( String -- txin
+  , String -- pkh
+  , Integer -- lovelace
+  )
+
+data GameLog
+  = GameServerStarting
+  | ConnectingToHydra {host :: Text, port :: Int}
+  | WaitingForConnectionToHydra {host :: Text, port :: Int}
+  | ConnectedToHydra {host :: Text, port :: Int}
+  | GameServerStarted
+  | HydraCommandFailed {request :: Request}
+  | ConnectedTo {peer :: Text}
+  | DisconnectedFrom {peer :: Text}
+  | NoGameToken {utxo :: Value}
+  | CommittingTo {headId :: HeadId}
+  | WaitingForCommit {me :: HydraParty, headId :: HeadId}
+  | CommittedTo {headId :: HeadId}
+  | FoundGameTokens {own :: [GameToken], their :: [GameToken]}
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
 withHydraServer :: Logger -> Network -> HydraParty -> Host -> (Server Chess.Game Hydra IO -> IO ()) -> IO ()
 withHydraServer logger network me host k = do
+  logWith logger GameServerStarting
   events <- newTVarIO mempty
   replaying <- newTVarIO True
-  withClient host $ \cnx ->
+  withClient logger host $ \cnx ->
     withAsync (pullEventsFromWs events cnx replaying) $ \thread ->
       let server =
             Server
@@ -175,7 +204,10 @@ withHydraServer logger network me host k = do
               , newGame = newGame events cnx
               , closeHead = sendClose cnx events
               }
-       in link thread >> k server
+       in do
+        link thread
+        logWith logger GameServerStarted
+        k server
  where
   pullEventsFromWs :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> TVar IO Bool -> IO ()
   pullEventsFromWs events cnx replaying = do
@@ -197,8 +229,8 @@ withHydraServer logger network me host k = do
               isReplaying <- readTVarIO replaying
               unless isReplaying $ splitGameUTxO cnx utxo
               atomically (modifyTVar' events (|> HeadOpened headId))
-            CommandFailed{} ->
-              putStrLn "Command failed"
+            CommandFailed request ->
+              logWith logger $ HydraCommandFailed request
             PostTxOnChainFailed{postTxError} ->
               atomically $
                 modifyTVar'
@@ -225,9 +257,9 @@ withHydraServer logger network me host k = do
             SnapshotConfirmed{headId, snapshot = Snapshot{utxo}} ->
               handleGameState events cnx headId utxo
             PeerConnected{peer} ->
-              putStrLn $ "Peer " <> unpack peer <> " connected"
+              logWith logger $ ConnectedTo peer
             PeerDisconnected{peer} ->
-              putStrLn $ "Peer " <> unpack peer <> " disconnected"
+              logWith logger $ DisconnectedFrom peer
 
   handleGameState :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> Value -> IO ()
   handleGameState events cnx headId utxo = do
@@ -257,7 +289,7 @@ withHydraServer logger network me host k = do
   splitGameUTxO cnx utxo = do
     myGameToken <- findGameToken utxo
     case myGameToken of
-      Nothing -> putStrLn ("Cannot find game token in " <> unpack (decodeUtf8 $ LBS.toStrict $ encode utxo)) >> pure ()
+      Nothing -> logWith logger $ NoGameToken utxo
       Just txin -> postSplitTx cnx txin
 
   postSplitTx :: Connection -> String -> IO ()
@@ -304,11 +336,9 @@ withHydraServer logger network me host k = do
                , txRawFile
                ]
 
-    putStrLn $ "Creating raw tx with " <> unwords fullArgs
+    logWith logger $ BuildingTransaction txRawFile fullArgs
 
     callProcess cardanoCliExe fullArgs
-
-    putStrLn $ "Created raw split tx file " <> txRawFile <> " with args: '" <> unwords args <> "'"
 
     callProcess
       cardanoCliExe
@@ -323,15 +353,11 @@ withHydraServer logger network me host k = do
         ]
         <> networkMagicArgs network
 
-    putStrLn $ "Signed split tx file " <> (txRawFile <.> "signed")
-
     cborHex <- extractCBORHex $ txRawFile <.> "signed"
-
-    putStrLn $ "Submitting tx " <> unpack cborHex
 
     WS.sendTextData cnx (encode $ NewTx cborHex)
 
-    putStrLn $ "Submitted commit tx file " <> txRawFile <.> "signed"
+    logWith logger $ SubmittedTransaction (txRawFile <.> "signed")
 
   findGameToken :: Value -> IO (Maybe String)
   findGameToken utxo = do
@@ -351,12 +377,13 @@ withHydraServer logger network me host k = do
       >>= maybe (throwIO $ ServerException "Timeout (10m) waiting for head Id") pure
 
   sendCommit :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> Host -> Integer -> HeadId -> IO ()
-  sendCommit cnx events Host{host, port} amount _headId =
+  sendCommit cnx events Host{host, port} amount headId =
     try go >>= \case
-      Left (CommitError msg) -> putStrLn msg
+      Left (err :: CommitError) -> logWith logger err
       Right{} -> pure ()
    where
     go = do
+      logWith logger $ CommittingTo headId
       cardanoCliExe <- findCardanoCliExecutable
       (skFile, vkFile) <- findKeys Game network
       socketPath <- findSocketPath network
@@ -394,8 +421,6 @@ withHydraServer logger network me host k = do
                   <> " for UTxO "
                   <> (asString utxo)
 
-      putStrLn $ "Wrote raw commit tx file " <> txFileRaw
-
       callProcess
         cardanoCliExe
         $ [ "transaction"
@@ -409,8 +434,6 @@ withHydraServer logger network me host k = do
           ]
           <> networkMagicArgs network
 
-      putStrLn $ "Signed commit tx file " <> (txFileRaw <.> "signed")
-
       callProcess
         cardanoCliExe
         $ [ "transaction"
@@ -422,7 +445,7 @@ withHydraServer logger network me host k = do
           ]
           <> networkMagicArgs network
 
-      putStrLn $ "Submitted commit tx file " <> txFileRaw <.> "signed"
+      logWith logger $ SubmittedTransaction (txFileRaw <.> "signed")
 
       timeout
         60_000_000
@@ -430,7 +453,9 @@ withHydraServer logger network me host k = do
             FundCommitted _ party _ | party == me -> Just ()
             _ -> Nothing
         )
-        >>= maybe (putStrLn "Timeout (60s) waiting for commit to appear, please try again") pure
+        >>= maybe
+          (logWith logger $ WaitingForCommit me headId)
+          (const $ logWith logger (CommittedTo headId))
 
   -- \| the new game transaction
   --
@@ -604,7 +629,7 @@ withHydraServer logger network me host k = do
 
       let (own, their) = List.partition (\(_, pk, _) -> pk == pkh) tokens
 
-      putStrLn $ "Tokens:  " <> show tokens <> ", own: " <> show own <> ", their: " <> show their
+      logWith logger $ FoundGameTokens own their
 
       when (length own /= 1) $ throwIO $ InvalidGameTokens own their
 
@@ -683,11 +708,7 @@ withHydraServer logger network me host k = do
   findGameTokens ::
     String ->
     Value ->
-    [ ( String -- txin
-      , String -- pkh
-      , Integer -- lovelace
-      )
-    ]
+    [GameToken]
   findGameTokens pid utxo =
     case utxo of
       Object kv -> foldMap (findUTxOWithPolicyId pid) (KeyMap.toList kv)
@@ -739,7 +760,6 @@ withHydraServer logger network me host k = do
     go 0 = throwIO $ ServerException "Timeout (10s) waiting for GetUTxO"
     go n = do
       WS.sendTextData cnx (encode GetUTxO)
-      putStrLn "sending GetUTxO"
       timeout
         10_000_000
         ( waitFor events $ \case
@@ -890,8 +910,9 @@ instance FromJSON Response where
 --   | InvalidInput {reason :: String, input :: Text}
 --   deriving (Generic)
 
-withClient :: Host -> (Connection -> IO a) -> IO a
-withClient Host{host, port} action = do
+withClient :: Logger -> Host -> (Connection -> IO a) -> IO a
+withClient logger Host{host, port} action = do
+  logWith logger $ ConnectingToHydra host port
   connectedOnce <- newIORef False
   tryConnect connectedOnce
  where
@@ -899,7 +920,7 @@ withClient Host{host, port} action = do
     doConnect connectedOnce `catch` \(e :: IOException) -> do
       readIORef connectedOnce >>= \case
         False -> do
-          putStrLn ("Failed to connect, retrying " <> unpack host <> ":" <> show port)
+          logWith logger $ WaitingForConnectionToHydra host port
           threadDelay 1_000_000
           tryConnect connectedOnce
         True -> throwIO e
@@ -908,7 +929,7 @@ withClient Host{host, port} action = do
 
   doConnect connectedOnce = WS.runClientWith (unpack host) port "/" wsOptions mempty $ \connection -> do
     atomicWriteIORef connectedOnce True
-    putStrLn $ "Connected to " <> unpack host <> ":" <> show port
+    logWith logger $ ConnectedToHydra host port
     res <- WS.withPingThread connection 10 (pure ()) $ action connection
     WS.sendClose connection ("Bye" :: Text)
     pure res
