@@ -39,6 +39,7 @@ library
   build-depends:
                   QuickCheck
                 , aeson
+                , ansi-terminal
                 , base
                 , base16-bytestring
                 , chess-core
