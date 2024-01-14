@@ -54,17 +54,15 @@ loop handle io = do
     Right cmd -> handle cmd >>= output io >> loop handle io
 
 handleCommand :: forall g c m. (Game g, IsChain c, Monad m) => Server g c m -> Command -> m Output
-handleCommand Server{initHead, commit, play, closeHead, newGame} = \case
+handleCommand Server{initHead, play, closeHead, newGame} = \case
   NewTable peers ->
     initHead peers <&> (\HeadId{headId} -> Ok . ("head initialised with id " <>) $ headId)
-  FundTable tableId amount ->
-    commit amount (HeadId tableId) >> pure (Ok "committed")
-  Play tableId p ->
+  Play p ->
     case readPlay @g p of
       Nothing -> pure (Ko $ "Invalid play " <> p)
-      Just pl -> play (HeadId tableId) pl >> pure (Ok "played")
-  NewGame tableId ->
-    newGame (HeadId tableId) >> pure (Ok "new game")
-  Stop tableId ->
-    closeHead (HeadId tableId) >> pure (Ok "closed")
+      Just pl -> play pl >> pure (Ok "played")
+  NewGame ->
+    newGame >> pure (Ok "new game")
+  Stop ->
+    closeHead >> pure (Ok "closed")
   Quit -> pure Bye

@@ -103,19 +103,14 @@ data Server g c m = Server
   -- ^ Initialises a head with given parties.
   -- Might throw an exception if something goes wrong before hitting the
   -- underlying chain.
-  , commit :: Integer -> HeadId -> m ()
-  -- ^ Commit some value to the given head.
-  -- The server is responsible for finding a suitable `Coin` that will fit the
-  -- amount funded.
-  -- Might throw a `ServerException` if something goes wrong.
-  , play :: HeadId -> GamePlay g -> m ()
+  , play :: GamePlay g -> m ()
   -- ^ When the game is opened, do one play which is game dependent
   -- Might throw a `ServerException` if the play is invalid.
-  , newGame :: HeadId -> m ()
+  , newGame :: m ()
   -- ^ When the game has ended, restarts a new one with initial state and possible
   -- plays.
   -- Might throw a `ServerException` if the play is invalid.
-  , closeHead :: HeadId -> m ()
+  , closeHead :: m ()
   -- ^ Close the given head, effectively stopping the game and committing back
   -- payoffs on-chain. Fanout will be posted automatically at end of contestation
   -- period.

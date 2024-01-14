@@ -86,12 +86,11 @@ import Game.Server (
   Server (..),
   ServerException (..),
  )
-import Game.Server.Mock (MockCoin (..))
 import Games.Cardano.Network (Network, networkMagicArgs)
 import Games.Logging (Logger, logWith)
 import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
-  HydraLog (BuildingTransaction, SubmittedTransaction),
+  HydraLog (BuildingTransaction, CardanoCliOutput, SubmittedTransaction),
   KeyRole (Game),
   extractCBORHex,
   findDatumFile,
@@ -115,7 +114,7 @@ import Numeric.Natural (Natural)
 import System.FilePath ((<.>))
 import System.IO (hClose)
 import System.Posix (mkstemp)
-import System.Process (callProcess)
+import System.Process (callProcess, readProcess)
 import Prelude hiding (seq)
 
 -- | The type of backend provide by Hydra
@@ -144,11 +143,11 @@ instance FromJSON HydraParty where
 
 instance IsChain Hydra where
   type Party Hydra = HydraParty
-  type Coin Hydra = MockCoin
+  type Coin Hydra = ()
 
   partyId = pack . show . vkey
 
-  coinValue (MockCoin c) = c
+  coinValue = const 0
 
 data CommitError = CommitError String
   deriving (Eq, Show, Exception)
@@ -199,7 +198,6 @@ withHydraServer logger network me host k = do
             Server
               { initHead = sendInit cnx events
               , poll = pollEvents events
-              , commit = sendCommit cnx events host
               , play = playGame cnx events
               , newGame = newGame events cnx
               , closeHead = sendClose cnx events
@@ -224,7 +222,7 @@ withHydraServer logger network me host k = do
             HeadIsFinalized headId _ ->
               atomically (modifyTVar' events (|> HeadClosed headId))
             Committed headId party _utxo ->
-              atomically (modifyTVar' events (|> FundCommitted headId party 0))
+              atomically (modifyTVar' events (|> FundCommitted headId party ()))
             HeadIsOpen headId utxo -> do
               isReplaying <- readTVarIO replaying
               unless isReplaying $ splitGameUTxO cnx utxo
@@ -278,10 +276,10 @@ withHydraServer logger network me host k = do
                 -- FIXME this is wrong and a consequence of the incorrect structure of the
                 -- application. The thread receiving messages should transform and transfer them
                 -- as fast as possible but not do complicated tx handling
-                void $ async $ endGame events cnx headId utxo
+                void $ async $ endGame events cnx utxo
             | Chess.checkState game == CheckMate Black -> do
                 atomically $ modifyTVar' events (|> GameEnded headId st WhiteWins)
-                void $ async $ endGame events cnx headId utxo
+                void $ async $ endGame events cnx utxo
             | otherwise ->
                 atomically $ modifyTVar' events (|> GameChanged headId st [])
 
@@ -376,7 +374,7 @@ withHydraServer logger network me host k = do
       )
       >>= maybe
         (throwIO $ ServerException "Timeout (10m) waiting for head Id")
-        (\ headId -> sendCommit cnx events host 100 headId >> pure headId)
+        (\headId -> sendCommit cnx events host 100 headId >> pure headId)
 
   sendCommit :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> Host -> Integer -> HeadId -> IO ()
   sendCommit cnx events Host{host, port} _amount headId =
@@ -436,16 +434,19 @@ withHydraServer logger network me host k = do
           ]
           <> networkMagicArgs network
 
-      callProcess
+      readProcess
         cardanoCliExe
-        $ [ "transaction"
+        ( [ "transaction"
           , "submit"
           , "--tx-file"
           , txFileRaw <.> "signed"
           , "--socket-path"
           , socketPath
           ]
-          <> networkMagicArgs network
+            <> networkMagicArgs network
+        )
+        []
+        >>= logWith logger . CardanoCliOutput cardanoCliExe
 
       logWith logger $ SubmittedTransaction (txFileRaw <.> "signed")
 
@@ -470,8 +471,8 @@ withHydraServer logger network me host k = do
   --
   -- The reason we need the deposit input is to provide an ADA-only collateral input
   -- which is required by the ledger rules
-  newGame :: TVar IO (Seq (FromChain g Hydra)) -> Connection -> HeadId -> IO ()
-  newGame events connection headId = do
+  newGame :: TVar IO (Seq (FromChain g Hydra)) -> Connection -> IO ()
+  newGame events connection = do
     cardanoCliExe <- findCardanoCliExecutable
     (skFile, vkFile) <- findKeys Game network
     gameAddress <- getVerificationKeyAddress vkFile network
@@ -521,9 +522,9 @@ withHydraServer logger network me host k = do
 
     submitNewTx connection args skFile
 
-  playGame :: Connection -> TVar IO (Seq (FromChain Chess Hydra)) -> HeadId -> GamePlay Chess -> IO ()
-  playGame cnx events _headId (GamePlay End) = pure ()
-  playGame cnx events _headId (GamePlay play@(ChessMove move)) =
+  playGame :: Connection -> TVar IO (Seq (FromChain Chess Hydra)) -> GamePlay Chess -> IO ()
+  playGame cnx events (GamePlay End) = pure ()
+  playGame cnx events (GamePlay play@(ChessMove move)) =
     try go >>= \case
       Left (InvalidMove illegal) -> putStrLn $ "Invalid move:  " <> show illegal
       Left other -> putStrLn $ "Error looking for data:  " <> show other
@@ -592,8 +593,8 @@ withHydraServer logger network me host k = do
 
       submitNewTx cnx args skFile
 
-  endGame :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> Value -> IO ()
-  endGame events cnx headId utxo =
+  endGame :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> Value -> IO ()
+  endGame events cnx utxo =
     try go >>= \case
       Left (InvalidGameTokens own their) -> putStrLn $ "Invalid game tokens, own: " <> show own <> ", their: " <> show their
       Left other -> putStrLn $ "Error building end game tx:  " <> show other
@@ -732,8 +733,8 @@ withHydraServer logger network me host k = do
       , "(10000000,100000000)"
       ]
 
-  sendClose :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> HeadId -> IO ()
-  sendClose cnx events _unusedHeadId = do
+  sendClose :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> IO ()
+  sendClose cnx events = do
     -- TODO: need to handle 'join' of collateral and game token
     WS.sendTextData cnx (encode Close)
     timeout

@@ -12,7 +12,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Games.Cardano.Network (Network, networkDir)
 import System.Directory (XdgDirectory (XdgCache), createDirectoryIfMissing, getXdgDirectory)
 import System.FilePath ((</>))
-import System.IO (Handle, IOMode (AppendMode), withFile)
+import System.IO (Handle, IOMode (AppendMode), withFile, hFlush)
 
 findLogFile :: Network -> IO FilePath
 findLogFile network = do
@@ -41,4 +41,5 @@ mkLogger hdl =
                   Object $ o <> KeyMap.fromList [("timestamp", toJSON time)]
                 other -> object ["timestamp" .= time, "log" .= other]
         BS.hPutStr hdl $ LBS.toStrict $ encode logged <> "\n"
+        hFlush hdl
     }

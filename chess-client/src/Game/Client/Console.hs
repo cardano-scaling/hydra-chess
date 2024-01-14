@@ -61,7 +61,6 @@ inputParser :: Parser Command
 inputParser =
   quitParser
     <|> newTableParser
-    <|> fundTableParser
     <|> playParser
     <|> newGameParser
     <|> stopParser
@@ -74,15 +73,10 @@ newTableParser = do
   string "newTable" >> spaceConsumer
   NewTable <$> sepBy identifier space
 
-fundTableParser :: Parser Command
-fundTableParser = do
-  string "fundTable" >> spaceConsumer
-  FundTable <$> (identifier <* spaceConsumer) <*> L.decimal
-
 playParser :: Parser Command
 playParser = do
   string "play" >> spaceConsumer
-  Play <$> (identifier <* spaceConsumer) <*> parsePlay
+  Play <$> parsePlay
  where
   parsePlay :: Parser Text
   parsePlay = takeRest
@@ -90,12 +84,12 @@ playParser = do
 newGameParser :: Parser Command
 newGameParser = do
   string "newGame" >> spaceConsumer
-  NewGame <$> (identifier <* spaceConsumer)
+  pure NewGame
 
 stopParser :: Parser Command
 stopParser = do
   string "stop" >> spaceConsumer
-  Stop <$> (identifier <* spaceConsumer)
+  pure Stop
 
 identifier :: Parser Text
 identifier = pack <$> ((:) <$> alphaNumChar <*> many alphaNumChar)

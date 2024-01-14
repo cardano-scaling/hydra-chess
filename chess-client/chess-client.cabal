@@ -29,7 +29,6 @@ library
     Game.Client.Console
     Game.Client.IO
     Game.Server
-    Game.Server.Mock
 
     Game.Chess
   build-depends:
@@ -41,22 +40,18 @@ library
                 , bytestring
                 , containers
                 , generic-random
-                , http-client
-                , http-conduit
                 , io-classes
                 , megaparsec
                 , mtl
                 , mtl
                 , random
                 , text
-                , websockets
 
 test-suite tests
   ghc-options:        -threaded -rtsopts -with-rtsopts=-N -Wall
   hs-source-dirs:     test
   other-modules:
     Game.Client.ConsoleSpec
-    Game.ClientSpec
 
   main-is:            Spec.hs
   type:               exitcode-stdio-1.0
@@ -70,9 +65,6 @@ test-suite tests
     , hspec
     , hspec-core
     , hspec-golden-aeson
-    , http-types
-    , io-classes
-    , io-sim
     , mtl
     , QuickCheck
     , text
