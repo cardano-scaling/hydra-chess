@@ -3,7 +3,7 @@
 
 module Games.Terminal where
 
-import Data.Aeson (ToJSON (toJSON), Value (..))
+import Data.Aeson (ToJSON (toJSON), Value (..), Object)
 import Data.Aeson.KeyMap ((!?))
 import Games.Logging (Logger (..))
 import System.Console.ANSI (
@@ -50,6 +50,21 @@ notifyProgress fn a = do
             , SetColor Background Dull Red
             ]
           hPutStr stdout "Cardano|Syncing   "
+          setSGR [Reset]
+          setSGR
+            [ SetColor Foreground Dull Red
+            ]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "CardanoNodeSyncedAt" -> do
+          let percent = mkPercentSynced kv
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Red
+            ]
+          hPutStr stdout $ "Cardano|Sync " <> percent <> "%"
           setSGR [Reset]
           setSGR
             [ SetColor Foreground Dull Red
@@ -142,3 +157,9 @@ notifyProgress fn a = do
         _ -> pure ()
     _ -> pure ()
   fn a
+
+mkPercentSynced :: Object -> String
+mkPercentSynced kv =
+  case kv !? "percentSynced" of
+    Just (Number num ) -> show num
+    _other -> "??.?"

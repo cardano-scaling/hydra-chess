@@ -55,8 +55,8 @@ data CardanoLog
   | CardanoNodeFullySynced
   | CardanoNodeSyncedAt {percentSynced :: Double}
   | DownloadingExecutables {downloadUrl :: String}
-  | DownloadedExecutables { destination :: FilePath }
-  | RetrievedConfigFile { configFile :: FilePath }
+  | DownloadedExecutables {destination :: FilePath}
+  | RetrievedConfigFile {configFile :: FilePath}
   | WaitingForNodeSocket {socketPath :: FilePath}
   | LoggingTo {logFile :: FilePath}
   deriving stock (Eq, Show, Generic)
@@ -130,14 +130,13 @@ findCardanoCliExecutable = do
 downloadCardanoExecutable :: Logger -> String -> String -> FilePath -> IO ()
 downloadCardanoExecutable logger version currentOs destDir = do
   let binariesUrl =
-        "https://github.com/intersectMBO/cardano-node/releases/download/"
-          <> version
-          <> "-pre"
-          <> "/cardano-node-"
-          <> version
-          <> "-"
-          <> osTag currentOs
-          <> ".tar.gz"
+        "https://github.com/intersectMBO/cardano-node/releases/download"
+          </> version
+          </> "cardano-node-"
+            <> version
+            <> "-"
+            <> osTag currentOs
+            <> ".tar.gz"
   request <- parseRequest $ "GET " <> binariesUrl
   logWith logger (DownloadingExecutables binariesUrl)
   httpLBS request >>= Tar.unpack destDir . Tar.read . GZip.decompress . getResponseBody
