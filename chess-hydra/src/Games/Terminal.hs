@@ -12,12 +12,13 @@ import System.Console.ANSI (
   ConsoleIntensity (..),
   ConsoleLayer (..),
   SGR (..),
-  setSGR,
+  setSGR, hCursorBackward,
  )
-import System.IO (hPutStr, stdout)
+import System.IO (BufferMode (NoBuffering), hPutStr, hSetBuffering, stdout)
 
-withTerminalFrontend :: (Applicative m) => Logger -> (Logger -> m a) -> m a
-withTerminalFrontend Logger{logEntry} k =
+withTerminalFrontend :: Logger -> (Logger -> IO a) -> IO a
+withTerminalFrontend Logger{logEntry} k = do
+  hSetBuffering stdout NoBuffering
   k Logger{logEntry = notifyProgress logEntry}
 
 notifyProgress :: (ToJSON a) => (a -> IO ()) -> a -> IO ()
@@ -28,12 +29,13 @@ notifyProgress fn a = do
       case kv !? "tag" of
         -- Cardano startup
         Just "CardanoNodeLaunching" -> do
+          hCursorBackward stdout 1000
           setSGR
             [ SetConsoleIntensity NormalIntensity
             , SetColor Foreground Vivid White
             , SetColor Background Dull Yellow
             ]
-          hPutStr stdout "\ESC[1ECardano|Launching"
+          hPutStr stdout "Cardano|Launching"
           setSGR [Reset]
           setSGR
             [ SetColor Foreground Dull Yellow
@@ -41,12 +43,13 @@ notifyProgress fn a = do
           hPutStr stdout "\x25b6"
           setSGR [Reset]
         Just "CardanoNodeSyncing" -> do
+          hCursorBackward stdout 1000
           setSGR
             [ SetConsoleIntensity NormalIntensity
             , SetColor Foreground Vivid White
             , SetColor Background Dull Red
             ]
-          hPutStr stdout "\ESC[1ECardano|Syncing  "
+          hPutStr stdout "Cardano|Syncing  "
           setSGR [Reset]
           setSGR
             [ SetColor Foreground Dull Red
@@ -54,37 +57,40 @@ notifyProgress fn a = do
           hPutStr stdout "\x25b6"
           setSGR [Reset]
         Just "CardanoNodeFullySynced" -> do
-          setSGR
-            [ SetConsoleIntensity NormalIntensity
-            , SetColor Foreground Vivid White
-            , SetColor Background Vivid Green
-            ]
-          hPutStr stdout "\ESC[1ECardano|Synced   "
-          setSGR [Reset]
-          setSGR
-            [SetColor Foreground Vivid Green]
-          hPutStr stdout "\x25b6"
-          setSGR [Reset]
-          hPutStr stdout "\n"
-        Just "HydraNodeStarting" -> do
-          setSGR
-            [ SetConsoleIntensity NormalIntensity
-            , SetColor Foreground Vivid White
-            , SetColor Background Vivid Yellow
-            ]
-          hPutStr stdout "\ESC[1EHydra  |Starting "
-          setSGR [Reset]
-          setSGR
-            [SetColor Foreground Vivid Yellow]
-          hPutStr stdout "\x25b6"
-          setSGR [Reset]
-        Just "HydraNodeStarted" -> do
+          hCursorBackward stdout 1000
           setSGR
             [ SetConsoleIntensity NormalIntensity
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout "\ESC[1EHydra  |Started  "
+          hPutStr stdout "Cardano|Synced   "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Green]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+          hPutStr stdout "\n"
+        Just "HydraNodeStarting" -> do
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Yellow
+            ]
+          hPutStr stdout "Hydra  |Starting "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Yellow]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "HydraNodeStarted" -> do
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Green
+            ]
+          hPutStr stdout "Hydra  |Started  "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]

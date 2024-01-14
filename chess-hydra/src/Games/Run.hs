@@ -18,12 +18,11 @@ import Games.Server.Hydra (HydraParty (..), withHydraServer)
 import Games.Server.IO (notifyChessEvent)
 import Games.Terminal (withTerminalFrontend)
 import Options.Applicative (execParser)
-import System.IO (BufferMode (..), hIsTerminalDevice, hSetBuffering, stdin, stdout)
+import System.IO (hIsTerminalDevice, stdin)
 
 run :: IO ()
 run = do
   Options{cardanoNetwork, onlyCardano} <- execParser hydraGamesInfo
-  hSetBuffering stdout NoBuffering
   logFile <- findLogFile cardanoNetwork
   withLogger logFile $ \fileLogger -> do
     withFrontend <-
