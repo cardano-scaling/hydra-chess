@@ -26,6 +26,7 @@ notifyProgress fn a = do
   case value of
     Object kv ->
       case kv !? "tag" of
+        -- Cardano startup
         Just "CardanoNodeLaunching" -> do
           setSGR
             [ SetConsoleIntensity NormalIntensity
@@ -62,6 +63,31 @@ notifyProgress fn a = do
           setSGR [Reset]
           setSGR
             [SetColor Foreground Vivid Green]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+          hPutStr stdout "\n"
+        Just "HydraNodeStarting" -> do
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Vivid Yellow
+            ]
+          hPutStr stdout "\ESC[1EHydra  |Starting "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Vivid Yellow]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "HydraNodeStarted" -> do
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Green
+            ]
+          hPutStr stdout "\ESC[1EHydra  |Started  "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Green]
           hPutStr stdout "\x25b6"
           setSGR [Reset]
           hPutStr stdout "\n"

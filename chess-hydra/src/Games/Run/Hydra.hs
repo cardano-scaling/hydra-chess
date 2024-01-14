@@ -104,6 +104,7 @@ import System.Process (
   readProcess,
   withCreateProcess,
  )
+import Data.Void (absurd)
 
 data HydraNode = HydraNode
   { hydraParty :: VerKeyDSIGN Ed25519DSIGN
@@ -115,21 +116,27 @@ version :: String
 version = "0.14.0"
 
 data HydraLog
-  = HydraNodeStarted
+  = HydraNodeStarting
   | CheckingGameToken {publicKeyHash :: String, address :: String}
   | NoGameTokenRegistered {address :: String, network :: Network}
+  | GameTokenRegistered {address :: String, network :: Network}
   | WaitForTokenRegistration {token :: String}
   | QueryingUtxo {address :: String}
   | BuildingTransaction {file :: FilePath, args :: [String]}
   | SubmittedTransaction {file :: FilePath}
   | UsingPeersFile {file :: FilePath}
   | NoPeersDefined
+  | CheckingHydraFunds {address :: String}
+  | NotEnoughFundsForHydra {address :: String}
+  | CheckedFundForHydra {address :: String}
+  | HydraNodeStarted
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
 withHydraNode :: Logger -> CardanoNode -> (HydraNode -> IO a) -> IO a
 withHydraNode logger CardanoNode{network, nodeSocket} k =
   withLogFile logger ("hydra-node" </> networkDir network) $ \out -> do
+    logWith logger HydraNodeStarting
     exe <- findHydraExecutable logger
     (me, process) <- hydraNodeProcess logger network exe nodeSocket
     withCreateProcess process{std_out = UseHandle out, std_err = UseHandle out} $
@@ -141,7 +148,7 @@ withHydraNode logger CardanoNode{network, nodeSocket} k =
               k (HydraNode me (Host "127.0.0.1" 34567))
           )
           >>= \case
-            Left{} -> error "should never been reached"
+            Left void  -> absurd void
             Right a -> pure a
 
 findHydraScriptsTxId :: Network -> IO String
@@ -211,7 +218,7 @@ checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
   pkh <- findPubKeyHash gameVkFile
   let token = "1 " <> Token.validatorHashHex <.> pkh
   gameAddress <- getVerificationKeyAddress gameVkFile network
-  logWith logger (CheckingGameToken pkh gameAddress)
+  logWith logger $ CheckingGameToken pkh gameAddress
   hasToken token gameAddress >>= \case
     Just{} -> pure ()
     Nothing -> do
@@ -228,7 +235,7 @@ checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
     logWith logger (WaitForTokenRegistration token)
     threadDelay 10_000_000
     hasToken token gameAddress
-      >>= maybe (waitForToken token gameAddress) (const $ pure ())
+      >>= maybe (waitForToken token gameAddress) (const $ logWith logger $ GameTokenRegistered gameAddress network)
 
   hasToken token gameAddress = do
     getUTxOFor logger network gameAddress
@@ -421,16 +428,17 @@ mkTxIn =
 checkFundsAreAvailable :: Logger -> Network -> FilePath -> FilePath -> IO ()
 checkFundsAreAvailable logger network signingKeyFile verificationKeyFile = do
   ownAddress <- getVerificationKeyAddress verificationKeyFile network
+  logWith logger $ CheckingHydraFunds ownAddress
   output <- getUTxOFor logger network ownAddress
   let maxLovelaceAvailable =
         if null output
           then 0
           else maximum $ fmap totalLovelace $ rights $ fmap (parseQueryUTxO . Text.pack) output
   when (maxLovelaceAvailable < 10_000_000) $ do
-    putStrLn $
-      "Hydra needs some funds to fuel the process, please ensure there's a UTxO with at least 10 ADAs at " <> ownAddress
+    logWith logger $ NotEnoughFundsForHydra ownAddress
     threadDelay 60_000_000
     checkFundsAreAvailable logger network signingKeyFile verificationKeyFile
+  logWith logger $ CheckedFundForHydra ownAddress
 
 totalLovelace :: SimpleUTxO -> Integer
 totalLovelace = \case
