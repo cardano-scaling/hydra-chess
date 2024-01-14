@@ -68,6 +68,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Encoding as Lazy
+import Data.Void (absurd)
 import GHC.Generics (Generic)
 import Game.Client.Console (Coins (..), SimpleUTxO (..), parseQueryUTxO)
 import Game.Server (Host (..))
@@ -104,7 +105,6 @@ import System.Process (
   readProcess,
   withCreateProcess,
  )
-import Data.Void (absurd)
 
 data HydraNode = HydraNode
   { hydraParty :: VerKeyDSIGN Ed25519DSIGN
@@ -123,6 +123,7 @@ data HydraLog
   | WaitForTokenRegistration {token :: String}
   | QueryingUtxo {address :: String}
   | BuildingTransaction {file :: FilePath, args :: [String]}
+  | CardanoCliOutput {executable :: FilePath, output :: String}
   | SubmittedTransaction {file :: FilePath}
   | UsingPeersFile {file :: FilePath}
   | NoPeersDefined
@@ -148,7 +149,7 @@ withHydraNode logger CardanoNode{network, nodeSocket} k =
               k (HydraNode me (Host "127.0.0.1" 34567))
           )
           >>= \case
-            Left void  -> absurd void
+            Left void -> absurd void
             Right a -> pure a
 
 findHydraScriptsTxId :: Network -> IO String
@@ -335,7 +336,7 @@ registerGameToken logger network gameSkFile gameVkFile = do
 
   logWith logger $ BuildingTransaction (txFileRaw <.> "raw") args
 
-  callProcess cardanoCliExe args
+  readProcess cardanoCliExe args [] >>= logWith logger . CardanoCliOutput cardanoCliExe
 
   callProcess
     cardanoCliExe
@@ -350,16 +351,19 @@ registerGameToken logger network gameSkFile gameVkFile = do
       ]
       <> networkMagicArgs network
 
-  callProcess
+  readProcess
     cardanoCliExe
-    $ [ "transaction"
+    ( [ "transaction"
       , "submit"
       , "--tx-file"
       , txFileRaw <.> "signed"
       , "--socket-path"
       , socketPath
       ]
-      <> networkMagicArgs network
+        <> networkMagicArgs network
+    )
+    []
+    >>= logWith logger . CardanoCliOutput cardanoCliExe
 
   logWith logger $ SubmittedTransaction (txFileRaw <.> "signed")
 
