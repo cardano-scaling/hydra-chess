@@ -12,7 +12,6 @@ where
 import PlutusTx.Prelude
 
 import Cardano.Binary (serialize')
-import Cardano.Crypto.Hash (Blake2b_224, Hash, hashToBytes, hashWith)
 import Data.Aeson (object, (.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
@@ -32,6 +31,8 @@ import PlutusLedgerApi.V2 (
 import PlutusTx (UnsafeFromData (..))
 import qualified PlutusTx
 import qualified Prelude
+import Crypto.Hash (Blake2b_224, hash)
+import Data.ByteArray (convert)
 
 -- | Signature of an untyped validator script.
 type ValidatorType = BuiltinData -> BuiltinData -> BuiltinData -> ()
@@ -73,10 +74,10 @@ wrapMintingPolicy f r c =
 scriptValidatorHash :: SerialisedScript -> ScriptHash
 scriptValidatorHash =
   ScriptHash
-    . toBuiltin
-    . hashToBytes
-    . hashWith @Blake2b_224
-      ( \sbs ->
+    . toBuiltin @ByteString
+    . convert
+    . hash @_ @Blake2b_224
+    . ( \sbs ->
           "\x02" -- the babbageScriptPrefixTag defined in cardano-ledger for PlutusV2 scripts
             Prelude.<> fromShort sbs
       )
@@ -97,8 +98,8 @@ validatorToBytes script =
       , "cborHex" .= Text.decodeUtf8 (Hex.encode $ serialize' script)
       ]
 
-pubKeyHash :: Hash h keyRole -> PubKeyHash
-pubKeyHash h = PubKeyHash (toBuiltin @ByteString $ hashToBytes h)
+pubKeyHash :: ByteString -> PubKeyHash
+pubKeyHash h = PubKeyHash (toBuiltin h)
 
 pubKeyHashToHex :: PubKeyHash -> Text
 pubKeyHashToHex (PubKeyHash bibs) =

@@ -25,6 +25,7 @@ library
   hs-source-dirs:  src
   ghc-options:     -Wall -Werror
   exposed-modules:
+    Games.Cardano.Crypto
     Games.Cardano.Network
 
     Games.Logging
@@ -48,15 +49,16 @@ library
                 , cardano-binary
                 , cborg
                 , containers
+                , cryptonite
                 , directory
                 , filepath
                 , generic-random
                 , http-client
                 , http-conduit
                 , http-types
-                , cardano-crypto-class
                 , io-classes
                 , megaparsec
+                , memory
                 , mtl
                 , mtl
                 , optparse-applicative

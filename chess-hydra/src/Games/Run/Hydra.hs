@@ -14,17 +14,6 @@
 module Games.Run.Hydra where
 
 import Cardano.Binary (FromCBOR, fromCBOR, serialize')
-import Cardano.Crypto.DSIGN (
-  DSIGNAlgorithm (SignKeyDSIGN),
-  Ed25519DSIGN,
-  VerKeyDSIGN,
-  deriveVerKeyDSIGN,
-  genKeyDSIGN,
-  hashVerKeyDSIGN,
-  seedSizeDSIGN,
- )
-import Cardano.Crypto.Hash (Blake2b_224)
-import Cardano.Crypto.Seed (readSeedFromSystemEntropy)
 import qualified Chess.Contract as Contract
 import Chess.Data (
   datumJSON,
@@ -44,6 +33,8 @@ import Control.Exception (throwIO)
 import Control.Monad (unless, when)
 import Control.Monad.Class.MonadAsync (race)
 import Control.Monad.Class.MonadTimer (threadDelay)
+import Crypto.Hash (Blake2b_224, hash)
+import Crypto.PubKey.Curve25519 (PublicKey, SecretKey, generateSecretKey, toPublic)
 import Data.Aeson (
   FromJSON,
   ToJSON,
@@ -56,10 +47,10 @@ import Data.Aeson (
  )
 import Data.Aeson.KeyMap (KeyMap, insert, (!?))
 import Data.Aeson.Types (Value (Object))
+import Data.ByteArray (convert)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
-import Data.Data (Proxy (..))
 import Data.Either (rights)
 import Data.Function (on)
 import qualified Data.List as List
@@ -72,6 +63,7 @@ import Data.Void (absurd)
 import GHC.Generics (Generic)
 import Game.Client.Console (Coins (..), SimpleUTxO (..), parseQueryUTxO)
 import Game.Server (Host (..))
+import Games.Cardano.Crypto ()
 import Games.Cardano.Network (Network (..), networkDir, networkMagicArgs)
 import Games.Logging (Logger, logWith)
 import Games.Run.Cardano (
@@ -107,7 +99,7 @@ import System.Process (
  )
 
 data HydraNode = HydraNode
-  { hydraParty :: VerKeyDSIGN Ed25519DSIGN
+  { hydraParty :: PublicKey
   , hydraHost :: Host
   }
   deriving (Show)
@@ -160,7 +152,7 @@ findHydraScriptsTxId = \case
   Preprod -> pure "d8ba8c488f52228b200df48fe28305bc311d0507da2c2420b10835bf00d21948"
   Mainnet -> pure "3ac58d3f9f35d8f2cb38d39639232c10cfe0b986728f672d26ffced944d74560"
 
-hydraNodeProcess :: Logger -> Network -> FilePath -> FilePath -> IO (VerKeyDSIGN Ed25519DSIGN, CreateProcess)
+hydraNodeProcess :: Logger -> Network -> FilePath -> FilePath -> IO (PublicKey, CreateProcess)
 hydraNodeProcess logger network executableFile nodeSocket = do
   (me, hydraSkFile) <- findHydraSigningKey logger network
 
@@ -369,15 +361,15 @@ registerGameToken logger network gameSkFile gameVkFile = do
 
 findPubKeyHash :: FilePath -> IO String
 findPubKeyHash vkFile =
-  show . pubKeyHash . hashVerKeyDSIGN @_ @Blake2b_224 <$> deserialiseFromEnvelope @(VerKeyDSIGN Ed25519DSIGN) vkFile
+  show . pubKeyHash . convert . hash @_ @Blake2b_224 <$> deserialiseFromEnvelope @PublicKey vkFile
 
 findEloScriptFile :: FilePath -> Network -> IO (String, FilePath)
 findEloScriptFile gameVkFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   let eloScriptFile = configDir </> "elo-script.plutus"
   -- FIXME: overwrite script every time?
-  gameVk <- deserialiseFromEnvelope @(VerKeyDSIGN Ed25519DSIGN) gameVkFile
-  let pkh = pubKeyHash $ hashVerKeyDSIGN @_ @Blake2b_224 gameVk
+  gameVk <- deserialiseFromEnvelope @PublicKey gameVkFile
+  let pkh = pubKeyHash $ convert $ hash @_ @Blake2b_224 gameVk
       bytes = ELO.validatorBytes pkh
   BS.writeFile eloScriptFile bytes
   pure (show pkh, eloScriptFile)
@@ -394,8 +386,8 @@ makeEloScriptFile pkh network = do
 eloScriptBytes :: FilePath -> Network -> IO BS.ByteString
 eloScriptBytes gameVkFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
-  gameVk <- deserialiseFromEnvelope @(VerKeyDSIGN Ed25519DSIGN) gameVkFile
-  let pkh = pubKeyHash $ hashVerKeyDSIGN @_ @Blake2b_224 gameVk
+  gameVk <- deserialiseFromEnvelope @PublicKey gameVkFile
+  let pkh = pubKeyHash $ convert $ hash @_ @Blake2b_224 gameVk
   pure $ ELO.validatorBytes pkh
 
 findDatumFile :: (ToData a) => String -> a -> Network -> IO String
@@ -449,10 +441,7 @@ totalLovelace = \case
   SimpleUTxO{coins = Coins{lovelace}} -> lovelace
   UTxOWithDatum{coins = Coins{lovelace}} -> lovelace
 
-ed25519seedsize :: Word
-ed25519seedsize = seedSizeDSIGN (Proxy @Ed25519DSIGN)
-
-findHydraSigningKey :: Logger -> Network -> IO (VerKeyDSIGN Ed25519DSIGN, FilePath)
+findHydraSigningKey :: Logger -> Network -> IO (PublicKey, FilePath)
 findHydraSigningKey logger network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   createDirectoryIfMissing True configDir
@@ -462,8 +451,8 @@ findHydraSigningKey logger network = do
     exe <- findHydraExecutable logger
     callProcess exe ["gen-hydra-key", "--output-file", configDir </> "hydra"]
 
-  sk <- deserialiseFromEnvelope @(SignKeyDSIGN Ed25519DSIGN) hydraSk
-  pure (deriveVerKeyDSIGN sk, hydraSk)
+  sk <- deserialiseFromEnvelope @SecretKey hydraSk
+  pure (toPublic sk, hydraSk)
 
 deserialiseFromEnvelope :: forall a. (FromCBOR a) => FilePath -> IO a
 deserialiseFromEnvelope file = do
@@ -505,9 +494,8 @@ findKeys keyRole network = do
   let signingKeyFile = signingKeyFilePath configDir keyRole
   exists <- doesFileExist signingKeyFile
   unless exists $ do
-    seed <- readSeedFromSystemEntropy (seedSizeDSIGN (Proxy @Ed25519DSIGN))
-    let sk = genKeyDSIGN @Ed25519DSIGN seed
-        jsonEnvelope =
+    sk <- generateSecretKey
+    let jsonEnvelope =
           object
             [ "type" .= ("PaymentSigningKeyShelley_ed25519" :: Text)
             , "description" .= ("Payment Signing Key" :: Text)

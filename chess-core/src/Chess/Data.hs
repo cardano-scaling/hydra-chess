@@ -8,7 +8,6 @@
 -- | Conversion functions
 module Chess.Data where
 
-import Cardano.Crypto.Hash (Blake2b_256, hashToBytes, hashWith)
 import Codec.Serialise (serialise)
 import Data.Aeson (FromJSON, ToJSON, Value (..), object, (.=))
 import qualified Data.Aeson as Aeson
@@ -33,10 +32,12 @@ import Test.QuickCheck.Modifiers (getPositive, getSmall)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Bifunctor (Bifunctor (bimap))
+import Crypto.Hash (hash, Blake2b_224)
+import Data.ByteArray (convert)
 
 datumHashBytes :: (ToData a) => a -> ByteString
 datumHashBytes =
-  hashToBytes . hashWith @Blake2b_256 datumBytes
+  convert . hash @_ @Blake2b_224 . datumBytes
 
 datumBytes :: (ToData a) => a -> ByteString
 datumBytes =
