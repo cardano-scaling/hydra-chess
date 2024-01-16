@@ -61,7 +61,6 @@ import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
-import Data.Either (rights)
 import Data.Foldable (toList)
 import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Data.List (intersperse)
@@ -100,8 +99,8 @@ import Games.Run.Hydra (
   findProtocolParametersFile,
   findPubKeyHash,
   getScriptAddress,
-  getUTxOFor,
   getVerificationKeyAddress,
+  hasToken,
   makeEloScriptFile,
   mkTempFile,
  )
@@ -392,16 +391,21 @@ withHydraServer logger network me host k = do
 
       -- find game token UTxO
       gameAddress <- getVerificationKeyAddress vkFile network
-      gameUTxO <- getUTxOFor logger network gameAddress
-      let gameToken = rights . fmap (parseQueryUTxO . pack) $ gameUTxO
+      token <- (("1 " <> Token.validatorHashHex) <.>) <$> findPubKeyHash vkFile
 
-      -- FIXME: Need to find the correct game token otherwise splitting won't work
-      when (null gameToken) $
-        throwIO $
-          CommitError $
-            "Failed to retrieve game token to commit from:\n" <> unlines gameUTxO
+      gameToken <-
+        hasToken logger network token gameAddress >>= \case
+          Just tok ->
+            either
+              (throwIO . CommitError . unpack)
+              pure
+              (parseQueryUTxO . pack $ tok)
+          Nothing ->
+            throwIO $
+              CommitError $
+                "Failed to retrieve game token to commit for:\n" <> token
 
-      let utxo = mkFullUTxO (Text.pack gameAddress) Nothing (head gameToken)
+      let utxo = mkFullUTxO (Text.pack gameAddress) Nothing gameToken
 
       -- commit is now external, so we need to handle query to the server, signature and then
       -- submission via the cardano-cli

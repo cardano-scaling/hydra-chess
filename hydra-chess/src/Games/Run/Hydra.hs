@@ -212,7 +212,7 @@ checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
   let token = "1 " <> Token.validatorHashHex <.> pkh
   gameAddress <- getVerificationKeyAddress gameVkFile network
   logWith logger $ CheckingGameToken pkh gameAddress
-  hasToken token gameAddress >>= \case
+  hasToken logger network token gameAddress >>= \case
     Just{} -> pure ()
     Nothing -> do
       -- FIXME: it could be the case the token is already consumed in an ongoing game
@@ -227,17 +227,18 @@ checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
   waitForToken token gameAddress = do
     logWith logger (WaitForTokenRegistration token)
     threadDelay 10_000_000
-    hasToken token gameAddress
+    hasToken logger network token gameAddress
       >>= maybe (waitForToken token gameAddress) (const $ logWith logger $ GameTokenRegistered gameAddress network)
 
-  hasToken token gameAddress = do
-    getUTxOFor logger network gameAddress
-      >>= pure . \case
-        [] -> Nothing
-        utxos ->
-          case filter (token `List.isInfixOf`) utxos of
-            utxo : _ -> Just utxo -- FIXME: can there be multiple game tokens?
-            [] -> Nothing
+hasToken :: Logger -> Network -> String -> String -> IO (Maybe String)
+hasToken logger network token gameAddress = do
+  getUTxOFor logger network gameAddress
+    >>= pure . \case
+      [] -> Nothing
+      utxos ->
+        case filter (token `List.isInfixOf`) utxos of
+          utxo : _ -> Just utxo -- FIXME: can there be multiple game tokens?
+          [] -> Nothing
 
 hasOutputAt :: Logger -> Network -> String -> IO (Maybe String)
 hasOutputAt logger network address = do
