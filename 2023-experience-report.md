@@ -54,10 +54,10 @@
   * The hydra-node requires up-front knowledge about the parties it needs to connect to, their addresses and their keys
   * Also of importance is the transaction id relevant to the cardano network, in order to be able to post the Head protocol transactions (they are now [available in the code repository](https://raw.githubusercontent.com/input-output-hk/hydra/0.14.0/networks.json))
 
-The [hygames](games-hydra/app/games-hydra.hs) executable aims at taking care of all those nitty-gritty details and provide a turnkey experience to the user which basically should be able to be up and running with a single command pointing to a given network, eg.:
+The [hychess](hydra-chess/app/hychess.hs) executable aims at taking care of all those nitty-gritty details and provide a turnkey experience to the user which basically should be able to be up and running with a single command pointing to a given network, eg.:
 
 ```
-hygames --network Preview
+hychess --network Preview
 ```
 
 To this aim, the executable currently:

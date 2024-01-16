@@ -18,7 +18,7 @@ index-state:
 packages:
   chess-core
   chess-client
-  chess-hydra
+  hydra-chess
 
 package *
   ghc-options: -j8

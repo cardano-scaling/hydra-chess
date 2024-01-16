@@ -1,5 +1,5 @@
 cabal-version:      2.4
-name:               chess-hydra
+name:               hydra-chess
 version:            0.1.0.0
 
 -- A short (one-line) description of the package.
@@ -19,7 +19,7 @@ maintainer:         arnaud.bailly@iohk.io
 -- A copyright notice.
 -- copyright:
 -- category:
-extra-source-files: CHANGELOG.md
+-- extra-source-files: CHANGELOG.md
 
 library
   hs-source-dirs:  src
@@ -73,9 +73,9 @@ library
                 , zip-archive
                 , zlib
 
-executable hygames
+executable hychess
   ghc-options:      -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
-  main-is:          games-hydra.hs
+  main-is:          hychess.hs
 
   -- Modules included in this executable, other than Main.
   -- other-modules:
@@ -87,7 +87,7 @@ executable hygames
     , base
     , chess-client
     , chess-core
-    , chess-hydra
+    , hydra-chess
     , optparse-applicative
     , text
 
@@ -107,7 +107,7 @@ test-suite tests
     , base
     , chess-client
     , chess-core
-    , chess-hydra
+    , hydra-chess
     , bytestring
     , containers
     , hspec

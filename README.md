@@ -18,9 +18,34 @@ This project started with [Black Jack](https://en.wikipedia.org/wiki/Blackjack) 
 * [ ] ~~Proper "randomness"~~
 * [x] Startup & configure Hydra server in the background
 * [x] Startup & configure cardano-node in the background
+* [ ] Use mithril to bootstrap Cardano-node
 * [x] Support for 2-players
 * [ ] User guide
+* [ ] Provide pre-compiled binaries
 * [ ] Web UI
+
+# Installation
+
+> [!WARNING]
+> The only tested and supported operating systems are currently Linux (and more precisely Debian-ish distros) and Mac OS X.
+> There are of course plans to support other operating systems and in particular Windows.
+
+The only currently supported method for installing hydra-chess is to build it from source.
+
+## Build from source
+
+*Requirements*:
+* Haskell toolchain: Checkout [ghcup](https://www.haskell.org/ghcup/) which is a great tool to provision a Haskell toolchain. hydra-chess requires GHC 9.6 and Cabal 3.10
+* System libraries: Install [libffi](https://sourceware.org/libffi/), [libiconv](https://www.gnu.org/software/libiconv/), and `libz`
+* Custom libraries: `hydra-chess` still depends on some custom native libraries for compilation, checkout the [cardano-node installation](https://github.com/input-output-hk/cardano-node-wiki/blob/main/docs/getting-started/install.md) page for instructions on how to install those, in particular `libsodium` and `libsecp256k1`.
+
+Assuming that all dependencies are installed, then do:
+
+```
+$ cabal install hydra-chess
+```
+
+to build all the components of `hydra-chess` and install binaries in the `~/.cabal/bin` directory.
 
 # Why?
 
