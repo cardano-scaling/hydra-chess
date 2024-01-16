@@ -252,15 +252,16 @@ withHydraServer logger network me host k = do
             TxValid{} -> pure ()
             TxInvalid{validationError} ->
               atomically $ modifyTVar' events (|> OtherMessage (Content $ pack $ asString validationError))
-            SnapshotConfirmed{headId, snapshot = Snapshot{utxo}} ->
-              handleGameState events cnx headId utxo
+            SnapshotConfirmed{headId, snapshot = Snapshot{utxo}} -> do
+              isReplaying <- readTVarIO replaying
+              handleGameState events cnx headId utxo isReplaying
             PeerConnected{peer} ->
               logWith logger $ ConnectedTo peer
             PeerDisconnected{peer} ->
               logWith logger $ DisconnectedFrom peer
 
-  handleGameState :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> Value -> IO ()
-  handleGameState events cnx headId utxo = do
+  handleGameState :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> Value -> Bool -> IO ()
+  handleGameState events cnx headId utxo isReplaying = do
     -- find output paying to game script address
     gameScriptFile <- findGameScriptFile network
     gameScriptAddress <- getScriptAddress gameScriptFile network
@@ -276,10 +277,10 @@ withHydraServer logger network me host k = do
                 -- FIXME this is wrong and a consequence of the incorrect structure of the
                 -- application. The thread receiving messages should transform and transfer them
                 -- as fast as possible but not do complicated tx handling
-                void $ async $ endGame events cnx utxo
+                unless isReplaying $ void $ async $ endGame events cnx utxo
             | Chess.checkState game == CheckMate Black -> do
                 atomically $ modifyTVar' events (|> GameEnded headId st WhiteWins)
-                void $ async $ endGame events cnx utxo
+                unless isReplaying $ void $ async $ endGame events cnx utxo
             | otherwise ->
                 atomically $ modifyTVar' events (|> GameChanged headId st [])
 
