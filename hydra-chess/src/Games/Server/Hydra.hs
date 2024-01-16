@@ -215,8 +215,9 @@ withHydraServer logger network me host k = do
           Left err ->
             atomically $ modifyTVar' events (|> OtherMessage (Content $ pack err))
           Right (Response{output}) -> case output of
-            HeadIsInitializing headId parties ->
+            HeadIsInitializing headId parties -> do
               atomically (modifyTVar' events (|> HeadCreated headId parties))
+              sendCommit cnx events host 100 headId
             HeadIsAborted headId _ ->
               atomically (modifyTVar' events (|> HeadClosed headId))
             HeadIsFinalized headId _ ->
@@ -375,7 +376,7 @@ withHydraServer logger network me host k = do
       )
       >>= maybe
         (throwIO $ ServerException "Timeout (10m) waiting for head Id")
-        (\headId -> sendCommit cnx events host 100 headId >> pure headId)
+        (\headId -> pure headId)
 
   sendCommit :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> Host -> Integer -> HeadId -> IO ()
   sendCommit cnx events Host{host, port} _amount headId =
