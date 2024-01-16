@@ -3,8 +3,9 @@
 
 module Games.Terminal where
 
-import Data.Aeson (ToJSON (toJSON), Value (..), Object)
+import Data.Aeson (Object, ToJSON (toJSON), Value (..))
 import Data.Aeson.KeyMap ((!?))
+import Data.Text (unpack)
 import Games.Logging (Logger (..))
 import System.Console.ANSI (
   Color (..),
@@ -12,7 +13,8 @@ import System.Console.ANSI (
   ConsoleIntensity (..),
   ConsoleLayer (..),
   SGR (..),
-  setSGR, hCursorBackward,
+  hCursorBackward,
+  setSGR,
  )
 import System.IO (BufferMode (NoBuffering), hPutStr, hSetBuffering, stdout)
 
@@ -153,13 +155,46 @@ notifyProgress fn a = do
             [SetColor Foreground Dull Green]
           hPutStr stdout "\x25b6"
           setSGR [Reset]
-          hPutStr stdout "\n"
+        Just "ConnectedTo" -> do
+          let peer = getPeer kv
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Green
+            ]
+          hPutStr stdout $ ("Chess  |On |" <> take 6 peer <> replicate (6 - length peer) ' ')
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Green]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "DisconnectedFrom" -> do
+          let peer = getPeer kv
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Red
+            ]
+          hPutStr stdout $ ("Chess  |Off|" <> take 6 peer <> replicate (6 - length peer) ' ')
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Red]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
         _ -> pure ()
     _ -> pure ()
   fn a
 
+getPeer :: Object -> String
+getPeer kv =
+  case kv !? "peer" of
+    Just (String txt) -> unpack txt
+    _other -> " ?"
+
 mkPercentSynced :: Object -> String
 mkPercentSynced kv =
   case kv !? "percentSynced" of
-    Just (Number num ) -> show num
+    Just (Number num) -> show num
     _other -> "??.?"
