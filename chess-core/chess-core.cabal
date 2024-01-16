@@ -48,10 +48,12 @@ library
     , cardano-binary
     , cardano-crypto-class
     , containers
+    , cryptonite
     , exceptions
     , generic-random
     , mtl
     , megaparsec
+    , memory
     , plutus-core
     , plutus-ledger-api
     , plutus-tx
