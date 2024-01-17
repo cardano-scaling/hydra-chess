@@ -16,6 +16,7 @@ import Control.Monad.Class.MonadAsync (MonadAsync, race_)
 import Control.Monad.Class.MonadTimer (MonadDelay, threadDelay)
 import Data.Functor (void, (<&>))
 import Data.Text (Text)
+import Game.Client.Console (helpText)
 import Game.Client.IO (Command (..), Err (..), HasIO (..), Output (Bye, Ko, Ok))
 import Game.Server (FromChain, Game (readPlay), HeadId (HeadId), Indexed (..), IsChain (..), Server (..))
 import qualified Game.Server as Server
@@ -55,6 +56,8 @@ loop handle io = do
 
 handleCommand :: forall g c m. (Game g, IsChain c, Monad m) => Server g c m -> Command -> m Output
 handleCommand Server{initHead, play, closeHead, newGame} = \case
+  Help ->
+    pure $ Ok helpText
   NewTable peers ->
     initHead peers <&> (\HeadId{headId} -> Ok . ("head initialised with id " <>) $ headId)
   Play p ->

@@ -20,6 +20,7 @@ import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text, pack)
+import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Void (Void)
 import Game.Client.IO (Command (..), Err (..), HasIO (..))
@@ -30,6 +31,23 @@ import Text.Megaparsec.Char (alphaNumChar, char, hexDigitChar, space, space1, st
 import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void Text
+
+helpText :: Text
+helpText =
+  Text.unlines
+    [ "Commands:"
+    , " * help : Display this message"
+    , " * init : Starts a new game session opening a Hydra head (can take a while)"
+    , " * newGame : Starts a new game when head is opened or a game concludes with"
+    , "       a check-mate. Displays the initial board."
+    , " * play <from>-<to> : move a piece on the board <from> some location <to>"
+    , "       some other location. <from> and <to> are denoted using cartesian"
+    , "       coordinates, for example:"
+    , "       > play d2-d4"
+    , "       Displays updated board upon validation of the move"
+    , " * stop : Stops the current game session, closing the Hydre head (can take a while)"
+    , " * quit : Quits hydra-chess gracefully (Ctrl-D or Ctrl-C also works)"
+    ]
 
 mkImpureIO :: (Show output) => Parser command -> HasIO command output IO
 mkImpureIO parser =

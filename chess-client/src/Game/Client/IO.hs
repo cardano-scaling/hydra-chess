@@ -15,6 +15,7 @@ import Data.Aeson (Value)
 
 data Command
   = NewTable [Text]
+  | Help
   | Play Text
   | NewGame
   | Stop
