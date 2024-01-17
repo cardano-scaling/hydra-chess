@@ -140,17 +140,17 @@ To connect with another player, one needs to configure a file named  `peers.json
 
 This file should be placed in a directory named after the cardano network used under one's home directory:
 
-* `hychess --network Preview` :point_right: `~/.config/hydra-node/preview/`
-* `hychess --network Preprod` :point_right: `~/.config/hydra-node/preprod/`
+* `hychess --network Preview` :point_right: `~/.config/hydra-chess/preview/`
+* `hychess --network Preprod` :point_right: `~/.config/hydra-chess/preprod/`
 * ...
 
 This file defines the information needed to connect to one or more peers (should be only one in the case of Chess):
 * The IP and TCP port of the remote peer
   > The port is currently hardcoded to be 5551
 * The base16 CBOR-encoded Cardano verification key of the peer.
-  > This corresponds to the `cborHex` field of the configuration file `~/.config/hydra-node/preview/cardano.vk`,
+  > This corresponds to the `cborHex` field of the configuration file `~/.config/hydra-chess/preview/cardano.vk`,
 * The base16 CBOR-encoded Hydra verification key of the peer.
-  > This corresponds to the `cborHex` field of the configuration file `~/.config/hydra-node/preview/hydra.vk`,
+  > This corresponds to the `cborHex` field of the configuration file `~/.config/hydra-chess/preview/hydra.vk`,
 
 Therefore the process to connect to a peer is currently the following (assuming network used is `Preview`):
 1. Start `hychess` on some network at least once in order to generate
@@ -161,22 +161,22 @@ Therefore the process to connect to a peer is currently the following (assuming 
    outgoing connections from the remote peer,
 4. Share the content of the file with the peer,
 5. Put the peer's information into a
-   `~/.config/hydra-node/preview/peers.json` file,
+   `~/.config/hydra-chess/preview/peers.json` file,
 6. **Stop** hychess,
-7. Remove the content of the `~/.cache/hydra-node/preview/` directory
+7. Remove the content of the `~/.cache/hydra-chess/preview/` directory
    which contains the state of hydra-node
 
    > Not doing this will result in an error upon node's restart as the
-   > peers configuration will havechanged
+   > peers configuration will have changed
 8. Restart `hychess`
 
 ## Troubleshooting
 
 `hychess` keeps a log of messages from cardano-node, hydra-node, and
 hychess processes. Those logs are placed respectively in:
-* `cardano-node` :arrow_right: `~/.cache/cardano-node/preview/node.log`,
-* `hydra-node` :arrow_right: `~/.cache/hydra-node/preview/node.log`,
-* `hychess` :arrow_right: `~/.cache/chess/preview/game.log`.
+* `cardano-node` :arrow_right: `~/.cache/hydra-chess/preview/cardano-node.log`,
+* `hydra-node` :arrow_right: `~/.cache/hydra-chess/preview/hydra-node.log`,
+* `hychess` :arrow_right: `~/.cache/hydra-chess/preview/game.log`.
 
 # Why?
 
