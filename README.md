@@ -20,7 +20,7 @@ This project started with [Black Jack](https://en.wikipedia.org/wiki/Blackjack) 
 * [x] Startup & configure cardano-node in the background
 * [ ] Use mithril to bootstrap Cardano-node
 * [x] Support for 2-players
-* [ ] User guide
+* [x] User manual
 * [ ] Provide pre-compiled binaries
 * [ ] Web UI
 
@@ -46,6 +46,137 @@ $ cabal install hydra-chess
 ```
 
 to build all the components of `hydra-chess` and install binaries in the `~/.cabal/bin` directory.
+
+# Usage
+
+## Starting up
+
+The main program is called `hychess` and is started with:
+
+```
+hychess --network <network name>
+```
+
+where `<network name>` argument is one of `Preview`, `Preprod`, or `Mainnet`.
+
+`hychess` should automatically download a cardano-node, its
+configuration files, start it, and then starts synchronizing,
+displaying progress on the command-line. Note that first time
+synchronisation will take some time, possibly a couple hours.
+
+Then it does the same for hydra-node, downloading a pre-built binary,
+configuring it, and starting it. On its first start, `hychess` will
+create two dedicated pairs of Cardano Payment keys, one to drive the
+Hydra protocol on-chain, and one to hold a _Game Token_ and some funds
+used as collateral to drive the game itself.
+
+Should everything goes well, one should end up with the following output in their terminal
+
+```
+Cardano|Synced    ▶
+Hydra  |Started   ▶
+Chess  |Started   ▶
+>
+```
+
+## Playing
+
+The command-line interface provides a very limited set of commands to play chess.
+Typing `help` at the prompt will list them:
+
+* `init` : Starts a new game session opening a Hydra head (can take a while)
+* `newGame` : Starts a new game when head is opened or a game concludes with
+      a check-mate. Displays the initial board.
+* `play <from>-<to>` : move a piece on the board `<from>` some location `<to>`
+      some other location. `<from>` and `<to>` are denoted using cartesian
+      coordinates, for example:
+
+      > play d2-d4"
+
+      Displays updated board upon validation of the move
+* `stop` : Stops the current game session, closing the Hydre head (can take a while)
+* `quit` : Quits hydra-chess gracefully (`Ctrl-D` or `Ctrl-C` also work)
+
+The normal sequence of operation is therefore to: `init` the head and
+game session, starts a `newGame`, `play` the game until completion,
+eg. check-mate for one of the players, then possibly do more `newGame`s, and
+finally `stop` to close the head and `quit` to exit.
+
+If things go well, one should see in their terminal the initial board:
+
+![Initial game board](./images/initial-board.png)
+
+Moving a piece updates the board after it's processed in the Head:
+
+![Board after a black move](./images/board-after-move.png)
+
+## Connecting to other players
+
+By default hydra-chess runs in "solo" mode allowing one to play both
+sides. While this is nice for testing, it's definitely much more fun
+to play remotely with a partner. After all, disintermediated
+peer-to-peer computing is the whole purpose of Cardano and blockchain!
+
+> [!WARNING]
+> The process of connecting 2 players is currently very
+> annoying and manually intensive. This will of course be improved in
+> future versions of hydra-chess
+
+To connect with another player, one needs to configure a file named  `peers.json` which looks like:
+
+```
+[
+    {
+        "name": "somename",
+        "address": {
+            "host": "192.168.1.140",
+            "port": 5551
+        },
+        "cardanoKey": "582068b950cd549a80b011a1ce7f6f384de0788cca685e24058e196ab450a7076989",
+        "hydraKey": "582018b42eb2fca922c893521b90386c00f32710888362138cc137c10b292eb8815c"
+    }
+]
+```
+
+This file should be placed in a directory named after the cardano network used under one's home directory:
+
+* `hychess --network Preview` :point_right: `~/.config/hydra-node/preview/`
+* `hychess --network Preprod` :point_right: `~/.config/hydra-node/preprod/`
+* ...
+
+This file defines the information needed to connect to one or more peers (should be only one in the case of Chess):
+* The IP and TCP port of the remote peer
+  > The port is currently hardcoded to be 5551
+* The base16 CBOR-encoded Cardano verification key of the peer.
+  > This corresponds to the `cborHex` field of the configuration file `~/.config/hydra-node/preview/cardano.vk`,
+* The base16 CBOR-encoded Hydra verification key of the peer.
+  > This corresponds to the `cborHex` field of the configuration file `~/.config/hydra-node/preview/hydra.vk`,
+
+Therefore the process to connect to a peer is currently the following (assuming network used is `Preview`):
+1. Start `hychess` on some network at least once in order to generate
+   needed data,
+2. Put the relevant information for one's node into a JSON formatted
+   file, retrieving the data as explained in the previous paragraph,
+3. Ensure one's firewall is properly configured to enable incoming and
+   outgoing connections from the remote peer,
+4. Share the content of the file with the peer,
+5. Put the peer's information into a
+   `~/.config/hydra-node/preview/peers.json` file,
+6. **Stop** hychess,
+7. Remove the content of the `~/.cache/hydra-node/preview/` directory
+   which contains the state of hydra-node
+
+   > Not doing this will result in an error upon node's restart as the
+   > peers configuration will havechanged
+8. Restart `hychess`
+
+## Troubleshooting
+
+`hychess` keeps a log of messages from cardano-node, hydra-node, and
+hychess processes. Those logs are placed respectively in:
+* `cardano-node` :arrow_right: `~/.cache/cardano-node/preview/node.log`,
+* `hydra-node` :arrow_right: `~/.cache/hydra-node/preview/node.log`,
+* `hychess` :arrow_right: `~/.cache/chess/preview/game.log`.
 
 # Why?
 
