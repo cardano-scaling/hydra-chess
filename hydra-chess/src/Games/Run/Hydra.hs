@@ -120,7 +120,7 @@ data HydraLog
   | UsingPeersFile {file :: FilePath}
   | NoPeersDefined
   | CheckingHydraFunds {address :: String}
-  | NotEnoughFundsForHydra {address :: String}
+  | NotEnoughFundsForHydra {network :: Network, address :: String}
   | CheckedFundForHydra {address :: String}
   | HydraNodeStarted
   deriving stock (Eq, Show, Generic)
@@ -432,7 +432,7 @@ checkFundsAreAvailable logger network signingKeyFile verificationKeyFile = do
           then 0
           else maximum $ fmap totalLovelace $ rights $ fmap (parseQueryUTxO . Text.pack) output
   when (maxLovelaceAvailable < 10_000_000) $ do
-    logWith logger $ NotEnoughFundsForHydra ownAddress
+    logWith logger $ NotEnoughFundsForHydra network ownAddress
     threadDelay 60_000_000
     checkFundsAreAvailable logger network signingKeyFile verificationKeyFile
   logWith logger $ CheckedFundForHydra ownAddress

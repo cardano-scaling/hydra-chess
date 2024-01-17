@@ -14,7 +14,7 @@ import System.Console.ANSI (
   ConsoleLayer (..),
   SGR (..),
   hCursorBackward,
-  setSGR,
+  setSGR, hClearFromCursorToLineEnd,
  )
 import System.IO (BufferMode (NoBuffering), hPutStr, hSetBuffering, stdout)
 
@@ -51,7 +51,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Red
             ]
-          hPutStr stdout "Cardano|Syncing   "
+          hPutStr stdout "Cardano|Syncing    "
           setSGR [Reset]
           setSGR
             [ SetColor Foreground Dull Red
@@ -80,7 +80,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout "Cardano|Synced    "
+          hPutStr stdout "Cardano|Synced     "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]
@@ -90,25 +90,72 @@ notifyProgress fn a = do
         -- Hydra startup
         Just "HydraNodeStarting" -> do
           hCursorBackward stdout 1000
+          hClearFromCursorToLineEnd stdout
           setSGR
             [ SetConsoleIntensity NormalIntensity
             , SetColor Foreground Vivid White
             , SetColor Background Dull Yellow
             ]
-          hPutStr stdout "Hydra  |Starting  "
+          hPutStr stdout "Hydra  |Starting   "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Yellow]
           hPutStr stdout "\x25b6"
           setSGR [Reset]
-        Just "HydraNodeStarted" -> do
+        Just "CheckingHydraFunds" -> do
           hCursorBackward stdout 1000
+          hClearFromCursorToLineEnd stdout
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Yellow
+            ]
+          hPutStr stdout "Hydra  |Check Funds"
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Yellow]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "NotEnoughFundsForHydra" -> do
+          let address = getAddress kv
+              network = getNetwork kv
+          hCursorBackward stdout 1000
+          hClearFromCursorToLineEnd stdout
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Red
+            ]
+          hPutStr stdout "Hydra  |No Funds   "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Red]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+          hPutStr stdout $ "Send at least 10 ADAs to " <> address <> " on " <> network
+        Just "CheckedHydraFunds" -> do
+          hCursorBackward stdout 1000
+          hClearFromCursorToLineEnd stdout
           setSGR
             [ SetConsoleIntensity NormalIntensity
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout "Hydra  |Started   "
+          hPutStr stdout "Hydra  |Funds OK  "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Green]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+        Just "HydraNodeStarted" -> do
+          hCursorBackward stdout 1000
+          hClearFromCursorToLineEnd stdout
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Green
+            ]
+          hPutStr stdout "Hydra  |Started    "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]
@@ -190,6 +237,18 @@ notifyProgress fn a = do
 getPeer :: Object -> String
 getPeer kv =
   case kv !? "peer" of
+    Just (String txt) -> unpack txt
+    _other -> " ?"
+
+getAddress :: Object -> String
+getAddress kv =
+  case kv !? "address" of
+    Just (String txt) -> unpack txt
+    _other -> " ?"
+
+getNetwork :: Object -> String
+getNetwork kv =
+  case kv !? "network" of
     Just (String txt) -> unpack txt
     _other -> " ?"
 
