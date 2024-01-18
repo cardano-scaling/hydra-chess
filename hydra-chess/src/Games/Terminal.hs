@@ -141,7 +141,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout "Hydra  |Funds OK  "
+          hPutStr stdout "Hydra  |Funds OK   "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]
@@ -170,7 +170,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Yellow
             ]
-          hPutStr stdout "Chess  |Starting  "
+          hPutStr stdout "Chess  |Starting   "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Yellow]
@@ -183,7 +183,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Red
             ]
-          hPutStr stdout "Chess  |Connecting"
+          hPutStr stdout "Chess  |Connecting "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Red]
@@ -196,7 +196,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout "Chess  |Connected "
+          hPutStr stdout "Chess  |Connected  "
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]
@@ -210,7 +210,7 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Green
             ]
-          hPutStr stdout $ ("Chess  |On |" <> take 6 peer <> replicate (6 - length peer) ' ')
+          hPutStr stdout $ ("Chess  |On  |" <> take 6 peer <> replicate (6 - length peer) ' ')
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Green]
@@ -224,12 +224,40 @@ notifyProgress fn a = do
             , SetColor Foreground Vivid White
             , SetColor Background Dull Red
             ]
-          hPutStr stdout $ ("Chess  |Off|" <> take 6 peer <> replicate (6 - length peer) ' ')
+          hPutStr stdout $ ("Chess  |Off |" <> take 6 peer <> replicate (6 - length peer) ' ')
           setSGR [Reset]
           setSGR
             [SetColor Foreground Dull Red]
           hPutStr stdout "\x25b6"
           setSGR [Reset]
+        Just "HeadOpened" -> do
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Green
+            ]
+          hPutStr stdout "Chess  |Opened     "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Green]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+          hPutStr stdout "\n"
+        Just "HeadClosed" -> do
+          hCursorBackward stdout 1000
+          setSGR
+            [ SetConsoleIntensity NormalIntensity
+            , SetColor Foreground Vivid White
+            , SetColor Background Dull Red
+            ]
+          hPutStr stdout "Chess  |Closed     "
+          setSGR [Reset]
+          setSGR
+            [SetColor Foreground Dull Red]
+          hPutStr stdout "\x25b6"
+          setSGR [Reset]
+          hPutStr stdout "\n"
         _ -> pure ()
     _ -> pure ()
   fn a
