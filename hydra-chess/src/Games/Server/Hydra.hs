@@ -159,7 +159,7 @@ type GameTokens = [(String, String, Integer)]
 
 data InvalidMove
   = InvalidMove Chess.IllegalMove
-  | InvalidGameTokens GameTokens GameTokens
+  | NoSingleOwnGameToken GameTokens GameTokens
   | UTxOError Text
   deriving (Eq, Show, Exception)
 
@@ -602,7 +602,7 @@ withHydraServer logger network me host k = do
   endGame :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> Value -> IO ()
   endGame events cnx utxo =
     try go >>= \case
-      Left (InvalidGameTokens own their) -> putStrLn $ "Invalid game tokens, own: " <> show own <> ", their: " <> show their
+      Left (NoSingleOwnGameToken own their) -> pure ()
       Left other -> putStrLn $ "Error building end game tx:  " <> show other
       Right{} -> pure ()
    where
@@ -640,7 +640,7 @@ withHydraServer logger network me host k = do
 
       logWith logger $ FoundGameTokens own their
 
-      when (length own /= 1) $ throwIO $ InvalidGameTokens own their
+      when (length own /= 1) $ throwIO $ NoSingleOwnGameToken own their
 
       args <-
         if null their
