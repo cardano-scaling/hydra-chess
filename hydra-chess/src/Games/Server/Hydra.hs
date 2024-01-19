@@ -277,10 +277,10 @@ withHydraServer logger network me host k = do
                 -- FIXME this is wrong and a consequence of the incorrect structure of the
                 -- application. The thread receiving messages should transform and transfer them
                 -- as fast as possible but not do complicated tx handling
-                unless isReplaying $ void $ async $ endGame events cnx utxo
+                void $ async $ endGame events cnx utxo
             | Chess.checkState game == CheckMate Black -> do
                 atomically $ modifyTVar' events (|> GameEnded headId st WhiteWins)
-                unless isReplaying $ void $ async $ endGame events cnx utxo
+                void $ async $ endGame events cnx utxo
             | otherwise ->
                 atomically $ modifyTVar' events (|> GameChanged headId st [])
 
@@ -695,8 +695,8 @@ withHydraServer logger network me host k = do
               , "--tx-out-inline-datum-file"
               , gameDatumFile
               , "--tx-out"
-              , eloScriptAddress <> " + " <> stringifyValue (20000000, own)
-              , "--tx-out-inline-datum-file"
+              , eloScriptAddress <> " + " <> stringifyValue (2000000, own)
+              , "--tx-out-inline-datum-value"
               , "1000" -- FIXME: should be some change in ELO rating
               , "--tx-out"
               , gameAddress <> "+ 8000000 lovelace" -- FIXME shoudl be value in collateral

@@ -9,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Games.Run.Hydra where
@@ -43,10 +44,11 @@ import Data.Aeson (
   eitherDecode,
   encode,
   object,
+  (.:),
   (.=),
  )
 import Data.Aeson.KeyMap (KeyMap, insert, (!?))
-import Data.Aeson.Types (Value (Object))
+import Data.Aeson.Types (FromJSON (..), ToJSON (..), Value (Object))
 import Data.ByteArray (convert)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Hex
@@ -90,6 +92,7 @@ import System.IO (hClose)
 import qualified System.Info as System
 import System.Posix (mkstemp)
 import System.Process (
+  CmdSpec (..),
   CreateProcess (..),
   StdStream (..),
   callProcess,
@@ -122,9 +125,28 @@ data HydraLog
   | CheckingHydraFunds {address :: String}
   | NotEnoughFundsForHydra {network :: Network, address :: String}
   | CheckedFundForHydra {address :: String}
-  | HydraNodeStarted
+  | HydraNodeStarted {cmdspec :: CmdSpec}
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
+
+instance ToJSON CmdSpec where
+  toJSON = \case
+    ShellCommand cmd ->
+      String $ Text.pack cmd
+    RawCommand exe args ->
+      object
+        [ "exe" .= exe
+        , "args" .= args
+        ]
+
+instance FromJSON CmdSpec where
+  parseJSON = \case
+    String cmd -> pure $ ShellCommand $ Text.unpack cmd
+    Object kv -> do
+      exe <- kv .: "exe"
+      args <- kv .: "args"
+      pure $ RawCommand exe args
+    other -> fail $ "Cannot parse CmdSpec, expected string or object, got " <> show other
 
 withHydraNode :: Logger -> CardanoNode -> (HydraNode -> IO a) -> IO a
 withHydraNode logger CardanoNode{network, nodeSocket} k =
@@ -137,7 +159,8 @@ withHydraNode logger CardanoNode{network, nodeSocket} k =
         race
           (checkProcessHasNotDied network "hydra-node" processHandle)
           ( do
-              logWith logger HydraNodeStarted
+              let CreateProcess{cmdspec} = process
+              logWith logger $ HydraNodeStarted cmdspec
               k (HydraNode me (Host "127.0.0.1" 34567))
           )
           >>= \case
