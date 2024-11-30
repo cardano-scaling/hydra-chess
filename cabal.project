@@ -1,6 +1,6 @@
 -- Custom repository for cardano haskell packages, see CONTRIBUTING.md
 repository cardano-haskell-packages
-  url: https://input-output-hk.github.io/cardano-haskell-packages
+  url: https://intersectmbo.github.io/cardano-haskell-packages
   secure: True
   root-keys:
     3e0cce471cf09815f930210f7827266fd09045445d65923e6d0238a6cd15126f
@@ -10,10 +10,10 @@ repository cardano-haskell-packages
     c00aae8461a256275598500ea0e187588c35a5d5d7454fb57eac18d9edb86a56
     d4a35cd3121aa00d18544bb0ac01c3e1691d618f462c46129271bccf39f7e8ee
 
+-- See CONTRIBUTING.md for information about when and how to update these.
 index-state:
-  , hackage.haskell.org 2023-10-20T06:54:18Z
-  , cardano-haskell-packages 2023-10-20T16:16:59Z
-
+  , hackage.haskell.org 2024-11-12T16:26:18Z
+  , cardano-haskell-packages 2024-11-12T08:40:13Z
 
 packages:
   chess-core

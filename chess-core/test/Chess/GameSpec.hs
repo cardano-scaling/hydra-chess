@@ -2,6 +2,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use camelCase" #-}
 
 module Chess.GameSpec where
 
@@ -78,8 +81,8 @@ spec = parallel $ do
   describe "King" $ do
     prop "can move 1 square in all directions" prop_king_moves_one_square
     prop "can take adjacent piece" prop_king_takes_adjacent_piece
-  -- describe "Castling" $ do
-  --   prop "is possible kingside" prop_king_castles_kings
+  describe "Castling" $ do
+    prop "is possible kingside" prop_castling_king_side
   describe "Check" $ do
     prop "is set if next move can take King" prop_is_check_if_next_move_can_take_king
     it "is set if move uncover a piece that can take King" is_check_if_move_uncovers_attacking_piece
@@ -515,6 +518,9 @@ prop_cannot_move_a_pawn_more_than_1_square_after_it_moved side =
     let game = mkGame side [PieceOnBoard Pawn side pos]
         move = Move (Pos row col) (Pos (row + 2) col)
      in isIllegal game move
+
+prop_castling_king_side :: Property
+prop_castling_king_side = undefined
 
 -- * Generic Properties
 

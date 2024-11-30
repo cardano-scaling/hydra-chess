@@ -12,8 +12,10 @@ where
 import PlutusTx.Prelude
 
 import Cardano.Binary (serialize')
+import Crypto.Hash (Blake2b_224, hash)
 import Data.Aeson (object, (.=))
 import qualified Data.Aeson as Aeson
+import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as Lazy
@@ -31,11 +33,9 @@ import PlutusLedgerApi.V2 (
 import PlutusTx (UnsafeFromData (..))
 import qualified PlutusTx
 import qualified Prelude
-import Crypto.Hash (Blake2b_224, hash)
-import Data.ByteArray (convert)
 
 -- | Signature of an untyped validator script.
-type ValidatorType = BuiltinData -> BuiltinData -> BuiltinData -> ()
+type ValidatorType = BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit
 
 wrapValidator ::
   (UnsafeFromData datum, UnsafeFromData redeemer, UnsafeFromData context) =>
@@ -50,7 +50,7 @@ wrapValidator f d r c =
 {-# INLINEABLE wrapValidator #-}
 
 -- | Signature of an untyped minting policy script.
-type MintingPolicyType = BuiltinData -> BuiltinData -> ()
+type MintingPolicyType = BuiltinData -> BuiltinData -> BuiltinUnit
 
 data MintAction = Mint | Burn
 

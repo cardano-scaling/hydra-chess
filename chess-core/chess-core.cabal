@@ -1,6 +1,6 @@
-cabal-version:      2.4
-name:               chess-core
-version:            0.1.0.0
+cabal-version: 2.4
+name:          chess-core
+version:       0.1.0.0
 
 -- A short (one-line) description of the package.
 -- synopsis:
@@ -13,8 +13,8 @@ version:            0.1.0.0
 
 -- The license under which the package is released.
 -- license:
-author:             Arnaud Bailly
-maintainer:         arnaud.bailly@iohk.io
+author:        Arnaud Bailly
+maintainer:    arnaud.bailly@iohk.io
 
 -- A copyright notice.
 -- copyright:
@@ -22,7 +22,8 @@ maintainer:         arnaud.bailly@iohk.io
 -- extra-source-files: CHANGELOG.md
 
 library
-  hs-source-dirs:  src
+  default-extensions: ViewPatterns
+  hs-source-dirs:     src
   ghc-options:
     -Wall -Werror -fno-ignore-interface-pragmas
     -fno-omit-interface-pragmas -fno-strictness
@@ -51,9 +52,9 @@ library
     , cryptonite
     , exceptions
     , generic-random
-    , mtl
     , megaparsec
     , memory
+    , mtl
     , plutus-core
     , plutus-ledger-api
     , plutus-tx
@@ -86,10 +87,11 @@ test-suite tests
   ghc-options:        -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
   hs-source-dirs:     test
   other-modules:
-     Chess.DataSpec
-     Chess.GameSpec
-     Chess.GoldenSpec
-     Chess.ParseSpec
+    Chess.DataSpec
+    Chess.GameSpec
+    Chess.GoldenSpec
+    Chess.ParseSpec
+
   main-is:            Spec.hs
   type:               exitcode-stdio-1.0
   build-depends:
@@ -105,4 +107,4 @@ test-suite tests
     , random
     , text
 
-  build-tool-depends: hspec-discover:hspec-discover -any
+  build-tool-depends: hspec-discover:hspec-discover
