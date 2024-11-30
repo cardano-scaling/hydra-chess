@@ -170,6 +170,7 @@ data IllegalMove
   | MoveBlocked Position Move
   | StillInCheck Side
   | GameEnded Check
+  | NoPieceToMove Position
   deriving (Haskell.Eq, Haskell.Show)
 
 PlutusTx.unstableMakeIsData ''IllegalMove
@@ -247,46 +248,47 @@ doMove move@(Move from to) game@Game{checkState, curSide}
         Just (PieceOnBoard Queen side _)
           | curSide == side ->
               either (const $ moveBishop move game) Right $ moveRook move game
-        _ -> Left $ WrongSideToPlay curSide move
+        Just PieceOnBoard{} -> Left $ WrongSideToPlay curSide move
+        Nothing -> Left $ NoPieceToMove from
 {-# INLINEABLE doMove #-}
 
 moveKing :: Move -> Game -> Either IllegalMove Game
 moveKing move@(Move (Pos row col) (Pos row' col')) game =
   if
-      | abs (row' - row) <= 1 && abs (col' - col) <= 1 ->
-          moveOrTakePiece move game
-      | otherwise ->
-          Left $ IllegalMove move
+    | abs (row' - row) <= 1 && abs (col' - col) <= 1 ->
+        moveOrTakePiece move game
+    | otherwise ->
+        Left $ IllegalMove move
 {-# INLINEABLE moveKing #-}
 
 moveRook :: Move -> Game -> Either IllegalMove Game
 moveRook move@(Move (Pos row col) (Pos row' col')) game =
   if
-      | row' == row || col' == col ->
-          moveOrTakePiece move game
-      | otherwise ->
-          Left $ IllegalMove move
+    | row' == row || col' == col ->
+        moveOrTakePiece move game
+    | otherwise ->
+        Left $ IllegalMove move
 {-# INLINEABLE moveRook #-}
 
 moveKnight :: Move -> Game -> Either IllegalMove Game
 moveKnight move@(Move from@(Pos row col) to@(Pos row' col')) game =
   if
-      | (abs (row' - row) == 1 && abs (col' - col) == 2)
-          || (abs (row' - row) == 2 && abs (col' - col) == 1) ->
-          if isJust (pieceAt to game)
-            then takePiece game from to
-            else Right $ movePiece game from to
-      | otherwise ->
-          Left $ IllegalMove move
+    | (abs (row' - row) == 1 && abs (col' - col) == 2)
+        || (abs (row' - row) == 2 && abs (col' - col) == 1) ->
+        if isJust (pieceAt to game)
+          then takePiece game from to
+          else Right $ movePiece game from to
+    | otherwise ->
+        Left $ IllegalMove move
 {-# INLINEABLE moveKnight #-}
 
 moveBishop :: Move -> Game -> Either IllegalMove Game
 moveBishop move@(Move (Pos row col) (Pos row' col')) game =
   if
-      | abs (row' - row) == abs (col' - col) ->
-          moveOrTakePiece move game
-      | otherwise ->
-          Left $ IllegalMove move
+    | abs (row' - row) == abs (col' - col) ->
+        moveOrTakePiece move game
+    | otherwise ->
+        Left $ IllegalMove move
 {-# INLINEABLE moveBishop #-}
 
 moveOrTakePiece :: Move -> Game -> Either IllegalMove Game
@@ -301,31 +303,31 @@ moveOrTakePiece move@(Move from to) game =
 moveWhitePawn :: Move -> Game -> Either IllegalMove Game
 moveWhitePawn move@(Move from@(Pos row col) to@(Pos row' col')) game =
   if
-      | (row' - row) == 1 && abs (col' - col) == 1 ->
-          takePiece game from to
-      | isJust (game `firstPieceOn` path from to) ->
-          Left $ IllegalMove move
-      | row >= 2 && row' - row == 1 && col == col' ->
-          Right $ movePiece game from to
-      | row == 1 && row' - row <= 2 && row' > row && col == col' ->
-          Right $ movePiece game from to
-      | otherwise ->
-          Left $ IllegalMove move
+    | (row' - row) == 1 && abs (col' - col) == 1 ->
+        takePiece game from to
+    | isJust (game `firstPieceOn` path from to) ->
+        Left $ IllegalMove move
+    | row >= 2 && row' - row == 1 && col == col' ->
+        Right $ movePiece game from to
+    | row == 1 && row' - row <= 2 && row' > row && col == col' ->
+        Right $ movePiece game from to
+    | otherwise ->
+        Left $ IllegalMove move
 {-# INLINEABLE moveWhitePawn #-}
 
 moveBlackPawn :: Move -> Game -> Either IllegalMove Game
 moveBlackPawn move@(Move from@(Pos row col) to@(Pos row' col')) game =
   if
-      | (row' - row) == -1 && abs (col' - col) == 1 ->
-          takePiece game from to
-      | isJust (game `firstPieceOn` path from to) ->
-          Left $ IllegalMove move
-      | row <= 5 && row' - row == -1 && col == col' ->
-          Right $ movePiece game from to
-      | row == 6 && row' - row >= -2 && row' < row && col == col' ->
-          Right $ movePiece game from to
-      | otherwise ->
-          Left $ IllegalMove move
+    | (row' - row) == -1 && abs (col' - col) == 1 ->
+        takePiece game from to
+    | isJust (game `firstPieceOn` path from to) ->
+        Left $ IllegalMove move
+    | row <= 5 && row' - row == -1 && col == col' ->
+        Right $ movePiece game from to
+    | row == 6 && row' - row >= -2 && row' < row && col == col' ->
+        Right $ movePiece game from to
+    | otherwise ->
+        Left $ IllegalMove move
 {-# INLINEABLE moveBlackPawn #-}
 
 pieceAt :: Position -> Game -> Maybe PieceOnBoard
@@ -358,8 +360,8 @@ takePiece game@Game{curSide, pieces} from to =
    in
     case newPos of
       Just p ->
-        Right $
-          game
+        Right
+          $ game
             { curSide = flipSide curSide
             , pieces = filter (\PieceOnBoard{pos} -> pos /= from && pos /= to) pieces <> [p]
             }
@@ -369,38 +371,38 @@ takePiece game@Game{curSide, pieces} from to =
 path :: Position -> Position -> Path
 path (Pos r c) (Pos r' c') =
   if
-      | abs vert == abs horiz -> diagonalPath
-      | r == r' || c == c' -> orthogonalPath
-      | otherwise -> emptyPath
+    | abs vert == abs horiz -> diagonalPath
+    | r == r' || c == c' -> orthogonalPath
+    | otherwise -> emptyPath
  where
   vert = r' - r
   horiz = c' - c
   diagonalPath =
-    Path $
-      if
-          | vert > 0 && horiz > 0 ->
-              [Pos (r + x) (c + x) | x <- enumFromTo 1 (abs horiz)]
-          | vert > 0 && horiz < 0 ->
-              [Pos (r + x) (c - x) | x <- enumFromTo 1 (abs horiz)]
-          | vert < 0 && horiz < 0 ->
-              [Pos (r - x) (c - x) | x <- enumFromTo 1 (abs horiz)]
-          | vert < 0 && horiz > 0 ->
-              [Pos (r - x) (c + x) | x <- enumFromTo 1 (abs horiz)]
-          | otherwise ->
-              []
+    Path
+      $ if
+        | vert > 0 && horiz > 0 ->
+            [Pos (r + x) (c + x) | x <- enumFromTo 1 (abs horiz)]
+        | vert > 0 && horiz < 0 ->
+            [Pos (r + x) (c - x) | x <- enumFromTo 1 (abs horiz)]
+        | vert < 0 && horiz < 0 ->
+            [Pos (r - x) (c - x) | x <- enumFromTo 1 (abs horiz)]
+        | vert < 0 && horiz > 0 ->
+            [Pos (r - x) (c + x) | x <- enumFromTo 1 (abs horiz)]
+        | otherwise ->
+            []
   orthogonalPath =
-    Path $
-      if
-          | vert == 0 && horiz > 0 ->
-              [Pos r x | x <- enumFromTo (c + 1) c']
-          | vert == 0 && horiz < 0 ->
-              [Pos r x | x <- reverse $ enumFromTo c' (c - 1)]
-          | horiz == 0 && vert < 0 ->
-              [Pos x c | x <- reverse $ enumFromTo r' (r - 1)]
-          | horiz == 0 && vert > 0 ->
-              [Pos x c | x <- enumFromTo (r + 1) r']
-          | otherwise ->
-              []
+    Path
+      $ if
+        | vert == 0 && horiz > 0 ->
+            [Pos r x | x <- enumFromTo (c + 1) c']
+        | vert == 0 && horiz < 0 ->
+            [Pos r x | x <- reverse $ enumFromTo c' (c - 1)]
+        | horiz == 0 && vert < 0 ->
+            [Pos x c | x <- reverse $ enumFromTo r' (r - 1)]
+        | horiz == 0 && vert > 0 ->
+            [Pos x c | x <- enumFromTo (r + 1) r']
+        | otherwise ->
+            []
 {-# INLINEABLE path #-}
 
 firstPieceOn :: Game -> Path -> Maybe PieceOnBoard

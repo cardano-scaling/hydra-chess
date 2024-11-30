@@ -94,6 +94,7 @@ spec = parallel $ do
     prop "cannot play same side twice in a row" prop_cannot_play_same_side_twice_in_a_row
   describe "General" $ do
     prop "cannot pass (move to the same position)" prop_cannot_pass
+    prop "cannot move from empty position" prop_cannot_move_empty_position
 
 is_check_mate_given_cannot_evade_check :: Property
 is_check_mate_given_cannot_evade_check = do
@@ -518,6 +519,14 @@ prop_cannot_move_a_pawn_more_than_1_square_after_it_moved side =
     let game = mkGame side [PieceOnBoard Pawn side pos]
         move = Move (Pos row col) (Pos (row + 2) col)
      in isIllegal game move
+
+prop_cannot_move_empty_position :: Property
+prop_cannot_move_empty_position =
+  forAll anyPos $ \from ->
+    forAll (anyPos `suchThat` (/= from)) $ \to ->
+      let game = mkGame White []
+          move = Move from to
+       in apply move game === Left (NoPieceToMove from)
 
 prop_castling_king_side :: Property
 prop_castling_king_side = undefined
