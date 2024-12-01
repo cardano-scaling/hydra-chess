@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_Rook -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -543,7 +543,9 @@ white_can_castle_king_side =
         ]
       game' = foldM (flip apply) game moves
    in case apply CastleKing =<< game' of
-        Right g -> findPieces King White g `shouldBe` [PieceOnBoard King White (Pos 0 6)]
+        Right g -> do
+          findPieces King White g `shouldBe` [PieceOnBoard King White (Pos 0 6)]
+          findPieces Rook White g `shouldBe` [PieceOnBoard Rook White (Pos 0 0), PieceOnBoard Rook White (Pos 0 5)]
         Left e -> fail ("cannot apply castling on king side: " <> show e)
 
 black_can_castle_king_side :: Expectation
@@ -560,7 +562,9 @@ black_can_castle_king_side =
         ]
       game' = foldM (flip apply) game moves
    in case apply CastleKing =<< game' of
-        Right g -> findPieces King Black g `shouldBe` [PieceOnBoard King Black (Pos 7 6)]
+        Right g -> do
+          findPieces King Black g `shouldBe` [PieceOnBoard King Black (Pos 7 6)]
+          findPieces Rook Black g `shouldBe` [PieceOnBoard Rook Black (Pos 7 0), PieceOnBoard Rook Black (Pos 7 5)]
         Left e -> fail ("cannot apply castling for black on king side: " <> show e)
 
 -- * Generic Properties

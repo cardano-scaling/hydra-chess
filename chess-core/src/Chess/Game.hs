@@ -254,8 +254,14 @@ doMove move@(Move from to) game@Game{checkState, curSide}
         Nothing -> Left $ NoPieceToMove from
 doMove CastleKing game@Game{curSide} =
   case curSide of
-    White -> Right $ movePiece game (Pos 0 4) (Pos 0 6)
-    Black -> Right $ movePiece game (Pos 7 4) (Pos 7 6)
+    White ->
+      Right
+        $ let game' = movePiece game (Pos 0 4) (Pos 0 6)
+           in movePiece game' (Pos 0 7) (Pos 0 5)
+    Black ->
+      Right
+        $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
+           in movePiece game' (Pos 7 4) (Pos 7 6)
 {-# INLINEABLE doMove #-}
 
 moveKing :: Move -> Game -> Either IllegalMove Game
