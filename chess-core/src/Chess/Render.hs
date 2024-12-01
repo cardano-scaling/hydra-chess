@@ -14,7 +14,7 @@ import Chess.Game (
  )
 import Data.Char (chr, intToDigit, ord)
 import Data.Text (Text, pack)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 
 class Render r where
   render :: r -> Text
@@ -26,6 +26,7 @@ instance Render Move where
   render = \case
     (Move f t) -> render f <> "-" <> render t
     CastleKing -> "O-O"
+    CastleQueen -> "O-O-O"
 
 instance Render Game where
   render game =

@@ -7,7 +7,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# OPTIONS_GHC -fno-specialize -fno-strictness -fno-spec-constr -fdefer-type-errors #-}
+{-# OPTIONS_GHC -fno-specialize -fno-strictness -fno-spec-constr #-}
 
 module Chess.Game where
 
@@ -245,12 +245,12 @@ doMove move@(Move from to) game@Game{checkState, curSide}
         Just (PieceOnBoard Pawn White _) | curSide == White -> moveWhitePawn from to game
         Just (PieceOnBoard Pawn Black _) | curSide == Black -> moveBlackPawn from to game
         Just (PieceOnBoard Rook side _) | curSide == side -> moveRook from to game
-        Just (PieceOnBoard Knight side _) | curSide == side -> moveKnight move game
-        Just (PieceOnBoard Bishop side _) | curSide == side -> moveBishop move game
-        Just (PieceOnBoard King side _) | curSide == side -> moveKing move game
+        Just (PieceOnBoard Knight side _) | curSide == side -> moveKnight from to game
+        Just (PieceOnBoard Bishop side _) | curSide == side -> moveBishop from to game
+        Just (PieceOnBoard King side _) | curSide == side -> moveKing from to game
         Just (PieceOnBoard Queen side _)
           | curSide == side ->
-              either (const $ moveBishop move game) Right $ moveRook from to game
+              either (const $ moveBishop from to game) Right $ moveRook from to game
         Just PieceOnBoard{} -> Left $ WrongSideToPlay curSide move
         Nothing -> Left $ NoPieceToMove from
 doMove CastleKing game =
@@ -285,13 +285,13 @@ castleQueenSide game@Game{curSide} =
            in movePiece game' (Pos 7 4) (Pos 7 2)
 {-# INLINEABLE castleQueenSide #-}
 
-moveKing :: Move -> Game -> Either IllegalMove Game
-moveKing move@(Move from@(Pos row col) to@(Pos row' col')) game =
+moveKing :: Position -> Position -> Game -> Either IllegalMove Game
+moveKing from@(Pos row col) to@(Pos row' col') game =
   if
     | abs (row' - row) <= 1 && abs (col' - col) <= 1 ->
         moveOrTakePiece from to game
     | otherwise ->
-        Left $ IllegalMove move
+        Left $ IllegalMove $ Move from to
 {-# INLINEABLE moveKing #-}
 
 moveRook :: Position -> Position -> Game -> Either IllegalMove Game
@@ -303,8 +303,8 @@ moveRook from@(Pos row col) to@(Pos row' col') game =
         Left $ IllegalMove $ Move from to
 {-# INLINEABLE moveRook #-}
 
-moveKnight :: Move -> Game -> Either IllegalMove Game
-moveKnight move@(Move from@(Pos row col) to@(Pos row' col')) game =
+moveKnight :: Position -> Position -> Game -> Either IllegalMove Game
+moveKnight from@(Pos row col) to@(Pos row' col') game =
   if
     | (abs (row' - row) == 1 && abs (col' - col) == 2)
         || (abs (row' - row) == 2 && abs (col' - col) == 1) ->
@@ -312,16 +312,16 @@ moveKnight move@(Move from@(Pos row col) to@(Pos row' col')) game =
           then takePiece game from to
           else Right $ movePiece game from to
     | otherwise ->
-        Left $ IllegalMove move
+        Left $ IllegalMove $ Move from to
 {-# INLINEABLE moveKnight #-}
 
-moveBishop :: Move -> Game -> Either IllegalMove Game
-moveBishop move@(Move from@(Pos row col) to@(Pos row' col')) game =
+moveBishop :: Position -> Position -> Game -> Either IllegalMove Game
+moveBishop from@(Pos row col) to@(Pos row' col') game =
   if
     | abs (row' - row) == abs (col' - col) ->
         moveOrTakePiece from to game
     | otherwise ->
-        Left $ IllegalMove move
+        Left $ IllegalMove $ Move from to
 {-# INLINEABLE moveBishop #-}
 
 moveOrTakePiece :: Position -> Position -> Game -> Either IllegalMove Game
