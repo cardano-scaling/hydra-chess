@@ -252,8 +252,10 @@ doMove move@(Move from to) game@Game{checkState, curSide}
               either (const $ moveBishop move game) Right $ moveRook move game
         Just PieceOnBoard{} -> Left $ WrongSideToPlay curSide move
         Nothing -> Left $ NoPieceToMove from
-doMove CastleKing game =
-  Right $ movePiece game (Pos 0 4) (Pos 0 6)
+doMove CastleKing game@Game{curSide} =
+  case curSide of
+    White -> Right $ movePiece game (Pos 0 4) (Pos 0 6)
+    Black -> Right $ movePiece game (Pos 7 4) (Pos 7 6)
 {-# INLINEABLE doMove #-}
 
 moveKing :: Move -> Game -> Either IllegalMove Game

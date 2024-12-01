@@ -84,6 +84,7 @@ spec = parallel $ do
     prop "can take adjacent piece" prop_king_takes_adjacent_piece
   describe "Castling" $ do
     it "is possible kingside for White" white_can_castle_king_side
+    it "is possible kingside for Black" black_can_castle_king_side
   describe "Check" $ do
     prop "is set if next move can take King" prop_is_check_if_next_move_can_take_king
     it "is set if move uncover a piece that can take King" is_check_if_move_uncovers_attacking_piece
@@ -544,6 +545,23 @@ white_can_castle_king_side =
    in case apply CastleKing =<< game' of
         Right g -> findPieces King White g `shouldBe` [PieceOnBoard King White (Pos 0 6)]
         Left e -> fail ("cannot apply castling on king side: " <> show e)
+
+black_can_castle_king_side :: Expectation
+black_can_castle_king_side =
+  let game = initialGame
+      moves =
+        [ Move (Pos 1 4) (Pos 3 4) -- e2-e4
+        , Move (Pos 6 4) (Pos 4 4) -- e7-e5
+        , Move (Pos 0 5) (Pos 1 4) -- f1-e2
+        , Move (Pos 7 5) (Pos 4 2) -- f8-c5
+        , Move (Pos 0 6) (Pos 2 5) -- g1-f3
+        , Move (Pos 7 6) (Pos 5 5) -- g8-f6
+        , Move (Pos 1 3) (Pos 2 3) -- d2-d3
+        ]
+      game' = foldM (flip apply) game moves
+   in case apply CastleKing =<< game' of
+        Right g -> findPieces King Black g `shouldBe` [PieceOnBoard King Black (Pos 7 6)]
+        Left e -> fail ("cannot apply castling for black on king side: " <> show e)
 
 -- * Generic Properties
 
