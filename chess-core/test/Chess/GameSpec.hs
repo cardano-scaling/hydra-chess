@@ -87,6 +87,7 @@ spec = parallel $ do
     it "is possible kingside for Black" black_can_castle_king_side
     it "is possible queen-side for White" white_can_castle_queen_side
     it "is possible queen-side for Black" black_can_castle_queen_side
+    prop "is not possible if king would move through position in check" prop_cannot_castle_if_king_would_be_in_check
   describe "Check" $ do
     prop "is set if next move can take King" prop_is_check_if_next_move_can_take_king
     it "is set if move uncover a piece that can take King" is_check_if_move_uncovers_attacking_piece
@@ -614,6 +615,42 @@ black_can_castle_queen_side =
           findPieces Rook Black g `shouldBe` [PieceOnBoard Rook Black (Pos 7 7), PieceOnBoard Rook Black (Pos 7 3)]
         Left e -> fail ("cannot apply castling for black on queen side: " <> show e)
 
+prop_cannot_castle_if_king_would_be_in_check :: Property
+prop_cannot_castle_if_king_would_be_in_check =
+  forAll arbitrary $ \side ->
+    forAll (elements [CastleKing, CastleQueen]) $ \move ->
+      forAll (elements (concatMap accessibleOrthogonally $ kingsPositions move side) `suchThat` notOnCastlingRow side) $ \threat ->
+        forAll arbitrary $ \(RookLike piece) ->
+          let game =
+                Game
+                  side
+                  NoCheck
+                  (PieceOnBoard piece (flipSide side) threat : castlingPosition side)
+           in isIllegal game move
+ where
+  kingsPositions move side = case (move, side) of
+    (CastleQueen, White) -> [Pos 0 4, Pos 0 2, Pos 0 3]
+    (CastleQueen, Black) -> [Pos 7 4, Pos 7 2, Pos 7 3]
+    (CastleKing, White) -> [Pos 0 4, Pos 0 5, Pos 0 6]
+    (CastleKing, Black) -> [Pos 7 4, Pos 7 5, Pos 7 6]
+    other -> error $ "unexpected move " <> show other
+
+  notOnCastlingRow side p =
+    case side of
+      White -> row p /= 0
+      Black -> row p /= 7
+  castlingPosition side =
+    case side of
+      White ->
+        [ PieceOnBoard King White (Pos 0 4)
+        , PieceOnBoard Rook White (Pos 0 7)
+        , PieceOnBoard Rook White (Pos 0 0)
+        ]
+      Black ->
+        [ PieceOnBoard King Black (Pos 7 4)
+        , PieceOnBoard Rook Black (Pos 7 7)
+        , PieceOnBoard Rook Black (Pos 7 0)
+        ]
 -- * Generic Properties
 
 isIllegal :: Game -> Move -> Property
@@ -624,13 +661,10 @@ isIllegal game move =
         & counterexample ("after:\n" <> unpack (render game'))
         & counterexample ("before:\n" <> unpack (render game))
         & counterexample ("move: " <> show move)
-        & counterexample ("path: " <> show (path from to))
     Left err ->
       err
         === IllegalMove move
         & counterexample ("game: " <> show game)
- where
-  Move from to = move
 
 isBlocked :: Game -> Move -> Property
 isBlocked game move =

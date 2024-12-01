@@ -261,28 +261,42 @@ doMove CastleQueen game =
 
 castleKingSide :: Game -> Either IllegalMove Game
 castleKingSide game@Game{curSide} =
-  case curSide of
-    White ->
-      Right
-        $ let game' = movePiece game (Pos 0 4) (Pos 0 6)
-           in movePiece game' (Pos 0 7) (Pos 0 5)
-    Black ->
-      Right
-        $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
-           in movePiece game' (Pos 7 4) (Pos 7 6)
+  if
+    | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleKing
+    | otherwise ->
+        case curSide of
+          White ->
+            Right
+              $ let game' = movePiece game (Pos 0 4) (Pos 0 6)
+                 in movePiece game' (Pos 0 7) (Pos 0 5)
+          Black ->
+            Right
+              $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
+                 in movePiece game' (Pos 7 4) (Pos 7 6)
+ where
+  kingsMove :: Side -> [Game]
+  kingsMove White = [game, movePiece game (Pos 0 4) (Pos 0 5), movePiece game (Pos 0 4) (Pos 0 6)]
+  kingsMove Black = [game, movePiece game (Pos 7 4) (Pos 7 5), movePiece game (Pos 7 4) (Pos 7 6)]
 {-# INLINEABLE castleKingSide #-}
 
 castleQueenSide :: Game -> Either IllegalMove Game
 castleQueenSide game@Game{curSide} =
-  case curSide of
-    White ->
-      Right
-        $ let game' = movePiece game (Pos 0 4) (Pos 0 2)
-           in movePiece game' (Pos 0 0) (Pos 0 3)
-    Black ->
-      Right
-        $ let game' = movePiece game (Pos 7 0) (Pos 7 3)
-           in movePiece game' (Pos 7 4) (Pos 7 2)
+  if
+    | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleQueen
+    | otherwise ->
+        case curSide of
+          White ->
+            Right
+              $ let game' = movePiece game (Pos 0 4) (Pos 0 2)
+                 in movePiece game' (Pos 0 0) (Pos 0 3)
+          Black ->
+            Right
+              $ let game' = movePiece game (Pos 7 0) (Pos 7 3)
+                 in movePiece game' (Pos 7 4) (Pos 7 2)
+ where
+  kingsMove :: Side -> [Game]
+  kingsMove White = [game, movePiece game (Pos 0 4) (Pos 0 3), movePiece game (Pos 0 4) (Pos 0 2)]
+  kingsMove Black = [game, movePiece game (Pos 7 4) (Pos 7 3), movePiece game (Pos 7 4) (Pos 7 2)]
 {-# INLINEABLE castleQueenSide #-}
 
 moveKing :: Position -> Position -> Game -> Either IllegalMove Game
