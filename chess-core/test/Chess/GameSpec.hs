@@ -642,7 +642,7 @@ isBlocked game move =
         & counterexample ("move: " <> show move)
     Left err ->
       err
-        === MoveBlocked pos move
+        === MoveBlocked pos from to
         & counterexample ("game: " <> show game)
  where
   Move from to = move
