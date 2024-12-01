@@ -263,10 +263,16 @@ doMove CastleKing game@Game{curSide} =
       Right
         $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
            in movePiece game' (Pos 7 4) (Pos 7 6)
-doMove CastleQueen game =
-  Right
-    $ let game' = movePiece game (Pos 0 4) (Pos 0 2)
-       in movePiece game' (Pos 0 0) (Pos 0 3)
+doMove CastleQueen game@Game{curSide} =
+  case curSide of
+    White ->
+      Right
+        $ let game' = movePiece game (Pos 0 4) (Pos 0 2)
+           in movePiece game' (Pos 0 0) (Pos 0 3)
+    Black ->
+      Right
+        $ let game' = movePiece game (Pos 7 0) (Pos 7 3)
+           in movePiece game' (Pos 7 4) (Pos 7 2)
 {-# INLINEABLE doMove #-}
 
 moveKing :: Move -> Game -> Either IllegalMove Game
