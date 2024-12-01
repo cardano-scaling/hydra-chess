@@ -23,7 +23,9 @@ instance Render Position where
   render (Pos r c) = pack [chr (ord 'a' + fromInteger c), chr (ord '1' + fromInteger r)]
 
 instance Render Move where
-  render (Move f t) = render f <> "-" <> render t
+  render = \case
+    (Move f t) -> render f <> "-" <> render t
+    CastleKing -> "O-O"
 
 instance Render Game where
   render game =

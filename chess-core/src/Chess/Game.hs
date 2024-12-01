@@ -152,7 +152,9 @@ isEndGame Game{checkState} =
     CheckMate{} -> True
     _ -> False
 
-data Move = Move Position Position
+data Move
+  = Move Position Position
+  | CastleKing
   deriving (Haskell.Eq, Haskell.Show, Generic, ToJSON, FromJSON)
 
 PlutusTx.unstableMakeIsData ''Move
@@ -250,6 +252,8 @@ doMove move@(Move from to) game@Game{checkState, curSide}
               either (const $ moveBishop move game) Right $ moveRook move game
         Just PieceOnBoard{} -> Left $ WrongSideToPlay curSide move
         Nothing -> Left $ NoPieceToMove from
+doMove CastleKing game =
+  Right $ movePiece game (Pos 0 4) (Pos 0 6)
 {-# INLINEABLE doMove #-}
 
 moveKing :: Move -> Game -> Either IllegalMove Game

@@ -21,10 +21,11 @@ import Chess.Generators (
   generateMove,
  )
 import Chess.Render (render)
+import Control.Monad (foldM)
 import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Text (unpack)
-import Test.Hspec (Expectation, Spec, describe, it, parallel, shouldSatisfy)
+import Test.Hspec (Expectation, Spec, describe, it, parallel, shouldBe, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (
   Arbitrary (..),
@@ -82,7 +83,7 @@ spec = parallel $ do
     prop "can move 1 square in all directions" prop_king_moves_one_square
     prop "can take adjacent piece" prop_king_takes_adjacent_piece
   describe "Castling" $ do
-    prop "is possible kingside" prop_castling_king_side
+    it "is possible kingside for White" white_can_castle_king_side
   describe "Check" $ do
     prop "is set if next move can take King" prop_is_check_if_next_move_can_take_king
     it "is set if move uncover a piece that can take King" is_check_if_move_uncovers_attacking_piece
@@ -528,8 +529,21 @@ prop_cannot_move_empty_position =
           move = Move from to
        in apply move game === Left (NoPieceToMove from)
 
-prop_castling_king_side :: Property
-prop_castling_king_side = undefined
+white_can_castle_king_side :: Expectation
+white_can_castle_king_side =
+  let game = initialGame
+      moves =
+        [ Move (Pos 1 4) (Pos 3 4)
+        , Move (Pos 6 4) (Pos 4 4)
+        , Move (Pos 0 5) (Pos 1 4)
+        , Move (Pos 6 5) (Pos 5 5)
+        , Move (Pos 0 6) (Pos 2 5)
+        , Move (Pos 7 5) (Pos 4 2)
+        ]
+      game' = foldM (flip apply) game moves
+   in case apply CastleKing =<< game' of
+        Right g -> findPieces King White g `shouldBe` [PieceOnBoard King White (Pos 0 6)]
+        Left e -> fail ("cannot apply castling on king side: " <> show e)
 
 -- * Generic Properties
 
