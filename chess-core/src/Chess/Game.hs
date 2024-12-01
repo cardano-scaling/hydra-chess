@@ -253,7 +253,14 @@ doMove move@(Move from to) game@Game{checkState, curSide}
               either (const $ moveBishop move game) Right $ moveRook move game
         Just PieceOnBoard{} -> Left $ WrongSideToPlay curSide move
         Nothing -> Left $ NoPieceToMove from
-doMove CastleKing game@Game{curSide} =
+doMove CastleKing game =
+  castleKingSide game
+doMove CastleQueen game@Game{curSide} =
+  castleQueenSide game
+{-# INLINEABLE doMove #-}
+
+castleKingSide :: Game -> Either IllegalMove Game
+castleKingSide game@Game{curSide} =
   case curSide of
     White ->
       Right
@@ -263,7 +270,10 @@ doMove CastleKing game@Game{curSide} =
       Right
         $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
            in movePiece game' (Pos 7 4) (Pos 7 6)
-doMove CastleQueen game@Game{curSide} =
+{-# INLINEABLE castleKingSide #-}
+
+castleQueenSide :: Game -> Either IllegalMove Game
+castleQueenSide game@Game{curSide} =
   case curSide of
     White ->
       Right
@@ -273,7 +283,7 @@ doMove CastleQueen game@Game{curSide} =
       Right
         $ let game' = movePiece game (Pos 7 0) (Pos 7 3)
            in movePiece game' (Pos 7 4) (Pos 7 2)
-{-# INLINEABLE doMove #-}
+{-# INLINEABLE castleQueenSide #-}
 
 moveKing :: Move -> Game -> Either IllegalMove Game
 moveKing move@(Move (Pos row col) (Pos row' col')) game =
