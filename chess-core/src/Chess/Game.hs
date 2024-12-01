@@ -16,10 +16,10 @@ import PlutusTx.Prelude
 import Control.Monad (guard)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import GHC.Generics (Generic)
-import qualified PlutusTx
+import PlutusTx qualified
 import Test.QuickCheck (Arbitrary (..), choose, suchThat)
-import qualified Prelude
-import qualified Prelude as Haskell
+import Prelude qualified
+import Prelude qualified as Haskell
 
 type Row = Integer
 type Col = Integer
@@ -155,6 +155,7 @@ isEndGame Game{checkState} =
 data Move
   = Move Position Position
   | CastleKing
+  | CastleQueen
   deriving (Haskell.Eq, Haskell.Show, Generic, ToJSON, FromJSON)
 
 PlutusTx.unstableMakeIsData ''Move
@@ -262,6 +263,10 @@ doMove CastleKing game@Game{curSide} =
       Right
         $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
            in movePiece game' (Pos 7 4) (Pos 7 6)
+doMove CastleQueen game =
+  Right
+    $ let game' = movePiece game (Pos 0 4) (Pos 0 2)
+       in movePiece game' (Pos 0 0) (Pos 0 3)
 {-# INLINEABLE doMove #-}
 
 moveKing :: Move -> Game -> Either IllegalMove Game

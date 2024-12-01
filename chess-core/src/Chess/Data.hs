@@ -9,31 +9,33 @@
 module Chess.Data where
 
 import Codec.Serialise (serialise)
+import Crypto.Hash (Blake2b_224, hash)
 import Data.Aeson (FromJSON, ToJSON, Value (..), object, (.=))
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Bifunctor (Bifunctor (bimap))
+import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base16 as Hex
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.List as List
-import qualified Data.Scientific as Scientific
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Encoding as LT
-import qualified Data.Vector as Vector
+import Data.ByteString qualified as BS
+import Data.ByteString.Base16 qualified as Hex
+import Data.ByteString.Lazy qualified as LBS
+import Data.List qualified as List
+import Data.Scientific qualified as Scientific
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Encoding qualified as LT
+import Data.Vector qualified as Vector
 import PlutusLedgerApi.V2 (
+  BuiltinData (..),
   Data (..),
   ToData,
-  toData, UnsafeFromData (unsafeFromBuiltinData), BuiltinData (..),
+  UnsafeFromData (unsafeFromBuiltinData),
+  toData,
  )
 import Test.QuickCheck (Arbitrary (arbitrary), Gen, frequency, listOf, scale)
 import Test.QuickCheck.Modifiers (getPositive, getSmall)
-import Data.Text (Text)
-import qualified Data.Text as Text
-import Data.Bifunctor (Bifunctor (bimap))
-import Crypto.Hash (hash, Blake2b_224)
-import Data.ByteArray (convert)
 
 datumHashBytes :: (ToData a) => a -> ByteString
 datumHashBytes =
@@ -52,7 +54,7 @@ datumJSON =
     . PlutusData
     . toData
 
-fromJSONDatum :: (ToData a, UnsafeFromData a) => Value -> Either Text a
+fromJSONDatum :: (UnsafeFromData a) => Value -> Either Text a
 fromJSONDatum = bimap Text.pack (unsafeFromBuiltinData . BuiltinData) . jsonToData
 
 newtype PlutusData = PlutusData Data

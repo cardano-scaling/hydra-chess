@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# OPTIONS_Rook -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -85,6 +85,7 @@ spec = parallel $ do
   describe "Castling" $ do
     it "is possible kingside for White" white_can_castle_king_side
     it "is possible kingside for Black" black_can_castle_king_side
+    it "is possible queen-side for White" white_can_castle_queen_side
   describe "Check" $ do
     prop "is set if next move can take King" prop_is_check_if_next_move_can_take_king
     it "is set if move uncover a piece that can take King" is_check_if_move_uncovers_attacking_piece
@@ -547,6 +548,28 @@ white_can_castle_king_side =
           findPieces King White g `shouldBe` [PieceOnBoard King White (Pos 0 6)]
           findPieces Rook White g `shouldBe` [PieceOnBoard Rook White (Pos 0 0), PieceOnBoard Rook White (Pos 0 5)]
         Left e -> fail ("cannot apply castling on king side: " <> show e)
+
+white_can_castle_queen_side :: Expectation
+white_can_castle_queen_side =
+  let game = initialGame
+      moves =
+        [ Move (Pos 1 4) (Pos 3 4) -- e2-e4
+        , Move (Pos 6 4) (Pos 4 4) -- e7-e5
+        , Move (Pos 1 3) (Pos 2 3) -- d2-d3
+        , Move (Pos 6 5) (Pos 4 5) -- f7-f5
+        , Move (Pos 0 3) (Pos 1 4) -- d1-e2
+        , Move (Pos 7 5) (Pos 4 2) -- f8-c5
+        , Move (Pos 0 2) (Pos 3 5) -- c1-f4
+        , Move (Pos 7 3) (Pos 6 4) -- d8-e7
+        , Move (Pos 0 1) (Pos 2 2) -- b1-c3
+        , Move (Pos 7 6) (Pos 5 5) -- g8-f6
+        ]
+      game' = foldM (flip apply) game moves
+   in case apply CastleQueen =<< game' of
+        Right g -> do
+          findPieces King White g `shouldBe` [PieceOnBoard King White (Pos 0 2)]
+          findPieces Rook White g `shouldBe` [PieceOnBoard Rook White (Pos 0 7), PieceOnBoard Rook White (Pos 0 3)]
+        Left e -> fail ("cannot apply castling on queen side: " <> show e)
 
 black_can_castle_king_side :: Expectation
 black_can_castle_king_side =
