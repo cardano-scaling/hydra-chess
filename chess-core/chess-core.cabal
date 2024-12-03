@@ -105,6 +105,8 @@ test-suite tests
   hs-source-dirs:     test
   other-modules:
     Chess.DataSpec
+    Chess.Game.Castling
+    Chess.Game.Utils
     Chess.GameSpec
     Chess.GoldenSpec
     Chess.ParseSpec
