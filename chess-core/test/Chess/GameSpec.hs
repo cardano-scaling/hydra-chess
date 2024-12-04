@@ -162,7 +162,7 @@ prop_is_check_if_next_move_can_take_king :: Side -> Property
 prop_is_check_if_next_move_can_take_king side =
   forAll anyPos $ \king ->
     forAll (elements $ accessibleOrthogonally king) $ \check ->
-      forAll (elements (accessibleOrthogonally check) `suchThat` (notOrthogonalTo king)) $ \from ->
+      forAll (elements (accessibleOrthogonally check) `suchThat` notOrthogonalTo king) $ \from ->
         forAll arbitrary $ \(RookLike piece) ->
           let game = mkGame (flipSide side) [PieceOnBoard King side king, PieceOnBoard piece (flipSide side) from]
            in isLegalMove (Move from check) game (isCheck side)
@@ -264,7 +264,7 @@ prop_bishop_can_take_enemy_piece (BishopLike piece) =
                     [ PieceOnBoard piece side pos
                     , PieceOnBoard Pawn (flipSide side) to
                     ]
-             in isLegalMove move game (\game' -> length (findPieces Pawn (flipSide side) game') == 0)
+             in isLegalMove move game (null . findPieces Pawn (flipSide side))
 
 prop_generate_paths_from_both_ends :: Property
 prop_generate_paths_from_both_ends =
@@ -333,7 +333,7 @@ prop_can_take_enemy_piece (RookLike piece) =
                     [ PieceOnBoard piece side pos
                     , PieceOnBoard Pawn (flipSide side) to
                     ]
-             in isLegalMove move game (\game' -> length (findPieces Pawn (flipSide side) game') == 0)
+             in isLegalMove move game (null . findPieces Pawn (flipSide side))
 
 prop_cannot_pass :: Property
 prop_cannot_pass =
@@ -352,7 +352,7 @@ prop_can_move_rook_horizontally (RookLike piece) =
   forAll anyPos $ \pos@(Pos r c) ->
     forAll arbitrary $ \side ->
       forAll (anyColumn `suchThat` (/= c)) $ \col ->
-        let newPos = (Pos r col)
+        let newPos = Pos r col
             game = mkGame side [PieceOnBoard piece side pos]
             move = Move pos newPos
          in isLegalMove
@@ -365,7 +365,7 @@ prop_can_move_rook_vertically (RookLike piece) =
   forAll anyPos $ \pos@(Pos r c) ->
     forAll arbitrary $ \side ->
       forAll (anyRow `suchThat` (/= r)) $ \row ->
-        let newPos = (Pos row c)
+        let newPos = Pos row c
             game = mkGame side [PieceOnBoard piece side pos]
             move = Move pos newPos
          in isLegalMove
