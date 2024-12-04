@@ -629,7 +629,7 @@ downloadHydraExecutable logger destDir = do
           <> version
           <> ".zip"
   request <- parseRequest $ "GET " <> binariesUrl
-  logWith logger $ DownloadingExecutables binariesUrl
+  logWith logger $ DownloadingExecutables destDir binariesUrl
   httpLBS request >>= Zip.extractFilesFromArchive [Zip.OptDestination destDir] . Zip.toArchive . getResponseBody
   logWith logger $ DownloadedExecutables destDir
 

@@ -1,18 +1,21 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Games.Logging where
 
+import Control.Exception (IOException, catch)
 import Control.Monad.Class.MonadTime (getCurrentTime)
 import Data.Aeson (ToJSON, Value (Object), encode, object, toJSON, (.=))
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import GHC.Stack (HasCallStack)
 import Games.Cardano.Network (Network, networkDir)
 import System.Directory (XdgDirectory (XdgCache), createDirectoryIfMissing, getXdgDirectory)
 import System.FilePath ((</>))
-import System.IO (Handle, IOMode (AppendMode), withFile, hFlush)
+import System.IO (Handle, IOMode (AppendMode), hFlush, withFile)
 
 findLogFile :: Network -> IO FilePath
 findLogFile network = do
@@ -22,12 +25,12 @@ findLogFile network = do
 
 data Logger = Logger {logEntry :: forall a. (ToJSON a) => a -> IO ()}
 
-withLogger :: FilePath -> (Logger -> IO a) -> IO a
+withLogger :: (HasCallStack) => FilePath -> (Logger -> IO a) -> IO a
 withLogger logFile k =
-  withFile logFile AppendMode $ \handle ->
-    k (mkLogger handle)
+  withFile logFile AppendMode (k . mkLogger)
+    `catch` \(e :: IOException) -> error ("Failed to open log file: " <> show e)
 
-logWith :: ToJSON a => Logger -> a -> IO ()
+logWith :: (ToJSON a) => Logger -> a -> IO ()
 logWith Logger{logEntry} a = logEntry a
 
 mkLogger :: Handle -> Logger

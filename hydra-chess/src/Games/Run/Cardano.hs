@@ -6,12 +6,13 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Games.Run.Cardano where
 
 import qualified Codec.Archive.Tar as Tar
 import qualified Codec.Compression.GZip as GZip
-import Control.Exception (Exception, finally, throwIO)
+import Control.Exception (Exception, IOException, catch, finally, throwIO)
 import Control.Monad (unless, when, (>=>))
 import Control.Monad.Class.MonadAsync (race)
 import Control.Monad.Class.MonadTimer (threadDelay)
@@ -50,11 +51,13 @@ data CardanoNode = CardanoNode
   deriving (Show)
 
 data CardanoLog
-  = CardanoNodeLaunching
+  = CardanoNodeStarting {exe :: FilePath, socketPath :: FilePath}
+  | CardanoNodeLaunching
   | CardanoNodeSyncing
   | CardanoNodeFullySynced
   | CardanoNodeSyncedAt {percentSynced :: Double}
-  | DownloadingExecutables {downloadUrl :: String}
+  | DownloadingExecutables {destinationDir :: FilePath, downloadUrl :: String}
+  | DownloadedExecutablesFailed {destinationDir :: FilePath, downloadUrl :: String, errorMessage :: String}
   | DownloadedExecutables {destination :: FilePath}
   | RetrievedConfigFile {configFile :: FilePath}
   | WaitingForNodeSocket {socketPath :: FilePath}
@@ -67,6 +70,7 @@ withCardanoNode logger network k =
   withLogFile logger ("cardano-node" </> networkDir network) $ \out -> do
     exe <- findCardanoExecutable logger (cardanoNodeVersion network)
     socketPath <- findSocketPath network
+    logWith logger (CardanoNodeStarting exe socketPath)
     process <- cardanoNodeProcess logger exe network
     withCreateProcess process{std_out = UseHandle out, std_err = UseHandle out} $
       \_stdin _stdout _stderr processHandle ->
@@ -103,7 +107,7 @@ findCardanoExecutable logger version = do
   let currentOS = System.os
   dataDir <- getXdgDirectory XdgData "cardano"
   createDirectoryIfMissing True dataDir
-  let cardanoExecutable = dataDir </> "cardano-node"
+  let cardanoExecutable = dataDir </> "bin" </> "cardano-node"
   exists <- doesFileExist cardanoExecutable
   hasRightVersion <-
     if exists
@@ -122,7 +126,7 @@ getVersion exe =
 findCardanoCliExecutable :: IO FilePath
 findCardanoCliExecutable = do
   dataDir <- getXdgDirectory XdgData "cardano"
-  let cardanoCliExecutable = dataDir </> "cardano-cli"
+  let cardanoCliExecutable = dataDir </> "bin" </> "cardano-cli"
   permissions <- getPermissions cardanoCliExecutable
   unless (executable permissions) $ setPermissions cardanoCliExecutable (setOwnerExecutable True permissions)
   pure cardanoCliExecutable
@@ -130,7 +134,7 @@ findCardanoCliExecutable = do
 downloadCardanoExecutable :: Logger -> String -> String -> FilePath -> IO ()
 downloadCardanoExecutable logger version currentOs destDir = do
   let binariesUrl =
-        "https://github.com/intersectMBO/cardano-node/releases/download"
+        "https://github.com/IntersectMBO/cardano-node/releases/download"
           </> version
           </> "cardano-node-"
             <> version
@@ -138,8 +142,9 @@ downloadCardanoExecutable logger version currentOs destDir = do
             <> osTag currentOs
             <> ".tar.gz"
   request <- parseRequest $ "GET " <> binariesUrl
-  logWith logger (DownloadingExecutables binariesUrl)
-  httpLBS request >>= Tar.unpack destDir . Tar.read . GZip.decompress . getResponseBody
+  logWith logger (DownloadingExecutables destDir binariesUrl)
+  (httpLBS request >>= Tar.unpack destDir . Tar.read . GZip.decompress . getResponseBody)
+    `catch` \(e :: IOException) -> logWith logger (DownloadedExecutablesFailed destDir binariesUrl (show e))
   logWith logger $ DownloadedExecutables destDir
 
 osTag :: String -> String
@@ -178,7 +183,7 @@ extractSyncPercent :: Value -> Either String Double
 extractSyncPercent = \case
   Object obj ->
     case obj !? "syncProgress" of
-      Just (String txt) -> pure $ (read $ unpack txt)
+      Just (String txt) -> pure $ read (unpack txt)
       _ -> Left "Did not find 'syncProgress' field"
   v -> Left $ "query returned something odd: " <> LT.unpack (Lazy.decodeUtf8 $ encode v)
 
