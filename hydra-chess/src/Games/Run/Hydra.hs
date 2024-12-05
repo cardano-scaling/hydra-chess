@@ -108,7 +108,7 @@ data HydraNode = HydraNode
   deriving (Show)
 
 version :: String
-version = "0.14.0"
+version = "0.19.0"
 
 data HydraLog
   = HydraNodeStarting
@@ -123,7 +123,7 @@ data HydraLog
   | UsingPeersFile {file :: FilePath}
   | NoPeersDefined
   | CheckingHydraFunds {address :: String}
-  | NotEnoughFundsForHydra {network :: Network, address :: String}
+  | NotEnoughFundsForHydra {network :: Network, address :: String, available :: Integer}
   | CheckedFundForHydra {address :: String}
   | HydraNodeStarted {cmdspec :: CmdSpec}
   deriving stock (Eq, Show, Generic)
@@ -171,9 +171,9 @@ findHydraScriptsTxId :: Network -> IO String
 findHydraScriptsTxId = \case
   -- TODO: use https://raw.githubusercontent.com/input-output-hk/hydra/0.14.0/networks.json
   -- FIXME: This is actually tied to the version
-  Preview -> pure "64deee72cd424d957ea0fddf71508429ecb65fea83a041fe9b708fc2ca973a8e"
-  Preprod -> pure "d8ba8c488f52228b200df48fe28305bc311d0507da2c2420b10835bf00d21948"
-  Mainnet -> pure "3ac58d3f9f35d8f2cb38d39639232c10cfe0b986728f672d26ffced944d74560"
+  Preview -> pure "0fd2468a66a0b1cb944cff9512ecfa25cdd2799cb48b07210c449a5ecace267d"
+  Preprod -> pure "03f8deb122fbbd98af8eb58ef56feda37728ec957d39586b78198a0cf624412a"
+  Mainnet -> pure "ab1d9f8cca896bca06b70df74860deecf20774e03d8562aecaed37525f6ebead"
 
 hydraNodeProcess :: Logger -> Network -> FilePath -> FilePath -> IO (PublicKey, CreateProcess)
 hydraNodeProcess logger network executableFile nodeSocket = do
@@ -327,7 +327,8 @@ registerGameToken logger network gameSkFile gameVkFile = do
   let token = "1 " <> Token.validatorHashHex <.> pkh
 
       args =
-        [ "transaction"
+        [ "conway"
+        , "transaction"
         , "build"
         , "--tx-in"
         , txin
@@ -356,7 +357,8 @@ registerGameToken logger network gameSkFile gameVkFile = do
 
   callProcess
     cardanoCliExe
-    $ [ "transaction"
+    $ [ "conway"
+      , "transaction"
       , "sign"
       , "--signing-key-file"
       , fundSk
@@ -369,7 +371,8 @@ registerGameToken logger network gameSkFile gameVkFile = do
 
   readProcess
     cardanoCliExe
-    ( [ "transaction"
+    ( [ "conway"
+      , "transaction"
       , "submit"
       , "--tx-file"
       , txFileRaw <.> "signed"
@@ -455,7 +458,7 @@ checkFundsAreAvailable logger network signingKeyFile verificationKeyFile = do
           then 0
           else maximum $ fmap totalLovelace $ rights $ fmap (parseQueryUTxO . Text.pack) output
   when (maxLovelaceAvailable < 10_000_000) $ do
-    logWith logger $ NotEnoughFundsForHydra network ownAddress
+    logWith logger $ NotEnoughFundsForHydra network ownAddress maxLovelaceAvailable
     threadDelay 60_000_000
     checkFundsAreAvailable logger network signingKeyFile verificationKeyFile
   logWith logger $ CheckedFundForHydra ownAddress

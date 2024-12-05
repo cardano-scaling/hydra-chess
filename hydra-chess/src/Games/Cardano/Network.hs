@@ -24,9 +24,9 @@ instance FromJSON Network where
     other -> fail $ "Unknown network " <> unpack other
 
 cardanoNodeVersion :: Network -> String
-cardanoNodeVersion Preview = "10.1.3"
-cardanoNodeVersion Preprod = "10.1.3"
-cardanoNodeVersion Mainnet = "10.1.3"
+cardanoNodeVersion Preview = "9.1.1"
+cardanoNodeVersion Preprod = "9.1.1"
+cardanoNodeVersion Mainnet = "9.1.1"
 
 networkDir :: Network -> FilePath
 networkDir = \case

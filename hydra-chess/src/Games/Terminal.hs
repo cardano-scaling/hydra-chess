@@ -13,8 +13,9 @@ import System.Console.ANSI (
   ConsoleIntensity (..),
   ConsoleLayer (..),
   SGR (..),
+  hClearFromCursorToLineEnd,
   hCursorBackward,
-  setSGR, hClearFromCursorToLineEnd,
+  setSGR,
  )
 import System.IO (BufferMode (NoBuffering), hPutStr, hSetBuffering, stdout)
 
