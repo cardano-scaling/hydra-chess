@@ -5,35 +5,195 @@
                 "tag": "NoCheck"
             },
             "curSide": "White",
+            "moves": [
+                {
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 4
+                        },
+                        {
+                            "col": 4,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 2
+                        },
+                        {
+                            "col": 1,
+                            "row": 0
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 4
+                        },
+                        {
+                            "col": 4,
+                            "row": 6
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 0
+                        },
+                        {
+                            "col": 2,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 5,
+                            "row": 7
+                        },
+                        {
+                            "col": 2,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 1
+                        },
+                        {
+                            "col": 7,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 7
+                        },
+                        {
+                            "col": 6,
+                            "row": 7
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 1
+                        },
+                        {
+                            "col": 2,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 7
+                        },
+                        {
+                            "col": 7,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 1
+                        },
+                        {
+                            "col": 1,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 6
+                        },
+                        {
+                            "col": 4,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 1
+                        },
+                        {
+                            "col": 4,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 6
+                        },
+                        {
+                            "col": 7,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 0,
+                            "row": 1
+                        },
+                        {
+                            "col": 0,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
+                }
+            ],
             "pieces": [
                 {
                     "piece": "Pawn",
                     "pos": {
-                        "col": 0,
-                        "row": 1
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 1,
-                        "row": 1
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
                         "col": 3,
-                        "row": 1
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 4,
                         "row": 1
                     },
                     "side": "White"
@@ -50,14 +210,6 @@
                     "piece": "Pawn",
                     "pos": {
                         "col": 6,
-                        "row": 1
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
                         "row": 1
                     },
                     "side": "White"
@@ -97,7 +249,7 @@
                 {
                     "piece": "Pawn",
                     "pos": {
-                        "col": 4,
+                        "col": 5,
                         "row": 6
                     },
                     "side": "Black"
@@ -111,25 +263,9 @@
                     "side": "Black"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
                     "piece": "Rook",
                     "pos": {
                         "col": 0,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 7,
                         "row": 7
                     },
                     "side": "Black"
@@ -157,22 +293,6 @@
                         "row": 7
                     },
                     "side": "Black"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 6,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 1,
-                        "row": 0
-                    },
-                    "side": "White"
                 },
                 {
                     "piece": "Knight",
@@ -186,14 +306,6 @@
                     "piece": "Bishop",
                     "pos": {
                         "col": 2,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 5,
                         "row": 7
                     },
                     "side": "Black"
@@ -245,6 +357,554 @@
                         "row": 0
                     },
                     "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 0,
+                        "row": 3
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 4
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 4,
+                        "row": 2
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 1,
+                        "row": 2
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 7,
+                        "row": 5
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 2,
+                        "row": 3
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 6,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 2
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 4,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 1,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 4,
+                        "row": 3
+                    },
+                    "side": "Black"
+                }
+            ]
+        },
+        {
+            "checkState": {
+                "tag": "NoCheck"
+            },
+            "curSide": "White",
+            "moves": [
+                {
+                    "contents": [
+                        {
+                            "col": 0,
+                            "row": 6
+                        },
+                        {
+                            "col": 0,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 1
+                        },
+                        {
+                            "col": 5,
+                            "row": 1
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 4
+                        },
+                        {
+                            "col": 5,
+                            "row": 1
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 1
+                        },
+                        {
+                            "col": 2,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 7
+                        },
+                        {
+                            "col": 4,
+                            "row": 6
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 1
+                        },
+                        {
+                            "col": 6,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 3,
+                            "row": 5
+                        },
+                        {
+                            "col": 2,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 0,
+                            "row": 1
+                        },
+                        {
+                            "col": 0,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 6
+                        },
+                        {
+                            "col": 2,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 2
+                        },
+                        {
+                            "col": 6,
+                            "row": 0
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 5,
+                            "row": 5
+                        },
+                        {
+                            "col": 3,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 0
+                        },
+                        {
+                            "col": 7,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 3,
+                            "row": 7
+                        },
+                        {
+                            "col": 5,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 2
+                        },
+                        {
+                            "col": 7,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 5,
+                            "row": 6
+                        },
+                        {
+                            "col": 5,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 0
+                        },
+                        {
+                            "col": 7,
+                            "row": 1
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 6
+                        },
+                        {
+                            "col": 4,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 1
+                        },
+                        {
+                            "col": 7,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                }
+            ],
+            "pieces": [
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 1,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 3,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 4,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 1,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 3,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 6,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 0,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 7,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 0,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 1,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 1,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 2,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 5,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 2,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 5,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Queen",
+                    "pos": {
+                        "col": 3,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "King",
+                    "pos": {
+                        "col": 4,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "King",
+                    "pos": {
+                        "col": 4,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 4,
+                        "row": 4
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 5,
+                        "row": 4
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 3
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 6,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 2,
+                        "row": 5
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 0,
+                        "row": 3
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 6,
+                        "row": 3
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 4,
+                        "row": 6
+                    },
+                    "side": "Black"
                 },
                 {
                     "piece": "Pawn",
@@ -255,9 +915,17 @@
                     "side": "White"
                 },
                 {
-                    "piece": "Pawn",
+                    "piece": "Rook",
                     "pos": {
                         "col": 5,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 0,
                         "row": 5
                     },
                     "side": "Black"
@@ -269,6 +937,34 @@
                 "tag": "NoCheck"
             },
             "curSide": "White",
+            "moves": [
+                {
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 6
+                        },
+                        {
+                            "col": 6,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
+                },
+                {
+                    "contents": [
+                        {
+                            "col": 3,
+                            "row": 1
+                        },
+                        {
+                            "col": 3,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                }
+            ],
             "pieces": [
                 {
                     "piece": "Pawn",
@@ -281,7 +977,7 @@
                 {
                     "piece": "Pawn",
                     "pos": {
-                        "col": 2,
+                        "col": 1,
                         "row": 1
                     },
                     "side": "White"
@@ -289,7 +985,7 @@
                 {
                     "piece": "Pawn",
                     "pos": {
-                        "col": 3,
+                        "col": 2,
                         "row": 1
                     },
                     "side": "White"
@@ -333,172 +1029,196 @@
                         "row": 6
                     },
                     "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 2,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 3,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 4,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 5,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 6,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 7,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 6,
-                        "row": 0
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 2,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 5,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 2,
-                        "row": 0
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 5,
-                        "row": 0
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Queen",
-                    "pos": {
-                        "col": 3,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Queen",
-                    "pos": {
-                        "col": 3,
-                        "row": 0
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "King",
-                    "pos": {
-                        "col": 4,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "King",
-                    "pos": {
-                        "col": 4,
-                        "row": 0
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
-                        "row": 4
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 4,
-                        "row": 3
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 2,
-                        "row": 5
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 7,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 0,
-                        "row": 0
-                    },
-                    "side": "White"
                 },
                 {
                     "piece": "Pawn",
                     "pos": {
                         "col": 1,
-                        "row": 4
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 2,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 3,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 4,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 5,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 0,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 7,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 0,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 7,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 1,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 6,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 1,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 6,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 2,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 5,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 2,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 5,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Queen",
+                    "pos": {
+                        "col": 3,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Queen",
+                    "pos": {
+                        "col": 3,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "King",
+                    "pos": {
+                        "col": 4,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "King",
+                    "pos": {
+                        "col": 4,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 3,
+                        "row": 2
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 6,
+                        "row": 5
                     },
                     "side": "Black"
                 }
@@ -509,10 +1229,33 @@
                 "tag": "NoCheck"
             },
             "curSide": "Black",
+            "moves": [
+                {
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 0
+                        },
+                        {
+                            "col": 5,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
+                }
+            ],
             "pieces": [
                 {
                     "piece": "Pawn",
                     "pos": {
+                        "col": 0,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
                         "col": 1,
                         "row": 1
                     },
@@ -537,6 +1280,14 @@
                 {
                     "piece": "Pawn",
                     "pos": {
+                        "col": 4,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
                         "col": 5,
                         "row": 1
                     },
@@ -545,7 +1296,31 @@
                 {
                     "piece": "Pawn",
                     "pos": {
+                        "col": 6,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 1
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
                         "col": 0,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 1,
                         "row": 6
                     },
                     "side": "Black"
@@ -601,10 +1376,26 @@
                 {
                     "piece": "Rook",
                     "pos": {
+                        "col": 0,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
                         "col": 7,
                         "row": 7
                     },
                     "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 0,
+                        "row": 0
+                    },
+                    "side": "White"
                 },
                 {
                     "piece": "Rook",
@@ -617,7 +1408,23 @@
                 {
                     "piece": "Knight",
                     "pos": {
+                        "col": 1,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
                         "col": 6,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 1,
                         "row": 0
                     },
                     "side": "White"
@@ -647,6 +1454,14 @@
                     "side": "White"
                 },
                 {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 5,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
                     "piece": "Queen",
                     "pos": {
                         "col": 3,
@@ -655,6 +1470,14 @@
                     "side": "Black"
                 },
                 {
+                    "piece": "Queen",
+                    "pos": {
+                        "col": 3,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
                     "piece": "King",
                     "pos": {
                         "col": 4,
@@ -671,82 +1494,10 @@
                     "side": "White"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 4,
-                        "row": 3
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 1,
-                        "row": 4
-                    },
-                    "side": "Black"
-                },
-                {
                     "piece": "Knight",
                     "pos": {
-                        "col": 2,
+                        "col": 5,
                         "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 0,
-                        "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 6,
-                        "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Queen",
-                    "pos": {
-                        "col": 0,
-                        "row": 0
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 6,
-                        "row": 3
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
-                        "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 4,
-                        "row": 4
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 2,
-                        "row": 3
                     },
                     "side": "White"
                 }
@@ -757,275 +1508,364 @@
                 "tag": "NoCheck"
             },
             "curSide": "Black",
-            "pieces": [
+            "moves": [
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 3,
-                        "row": 1
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 3
+                        },
+                        {
+                            "col": 5,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 4,
-                        "row": 1
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 6
+                        },
+                        {
+                            "col": 6,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 5,
-                        "row": 1
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 3
+                        },
+                        {
+                            "col": 2,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 6,
-                        "row": 1
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 6
+                        },
+                        {
+                            "col": 7,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
-                        "row": 1
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 2
+                        },
+                        {
+                            "col": 4,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 0,
-                        "row": 6
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 7
+                        },
+                        {
+                            "col": 4,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 2,
-                        "row": 6
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 3,
+                            "row": 3
+                        },
+                        {
+                            "col": 1,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 4,
-                        "row": 6
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 3
+                        },
+                        {
+                            "col": 2,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 6,
-                        "row": 6
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 0
+                        },
+                        {
+                            "col": 6,
+                            "row": 0
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
-                        "row": 6
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 3,
+                            "row": 6
+                        },
+                        {
+                            "col": 3,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 0,
-                        "row": 7
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 1
+                        },
+                        {
+                            "col": 7,
+                            "row": 0
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 7,
-                        "row": 7
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 7
+                        },
+                        {
+                            "col": 5,
+                            "row": 6
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 0,
-                        "row": 0
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 0
+                        },
+                        {
+                            "col": 7,
+                            "row": 1
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 7,
-                        "row": 0
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 2,
+                            "row": 4
+                        },
+                        {
+                            "col": 4,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 1,
-                        "row": 7
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 5,
+                            "row": 2
+                        },
+                        {
+                            "col": 3,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 6,
-                        "row": 7
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 0,
+                            "row": 5
+                        },
+                        {
+                            "col": 2,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 1,
-                        "row": 0
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 2
+                        },
+                        {
+                            "col": 1,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 2,
-                        "row": 7
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 0,
+                            "row": 7
+                        },
+                        {
+                            "col": 1,
+                            "row": 7
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 5,
-                        "row": 7
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 6,
+                            "row": 0
+                        },
+                        {
+                            "col": 5,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 2,
-                        "row": 0
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 7
+                        },
+                        {
+                            "col": 0,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 5,
-                        "row": 0
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 5,
+                            "row": 1
+                        },
+                        {
+                            "col": 5,
+                            "row": 3
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Queen",
-                    "pos": {
-                        "col": 3,
-                        "row": 7
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 4,
+                            "row": 6
+                        },
+                        {
+                            "col": 4,
+                            "row": 4
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Queen",
-                    "pos": {
-                        "col": 3,
-                        "row": 0
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 7,
+                            "row": 1
+                        },
+                        {
+                            "col": 7,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "King",
-                    "pos": {
-                        "col": 4,
-                        "row": 0
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 6
+                        },
+                        {
+                            "col": 1,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 1,
-                        "row": 5
-                    },
-                    "side": "Black"
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 1
+                        },
+                        {
+                            "col": 1,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 6,
-                        "row": 4
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 5,
+                            "row": 6
+                        },
+                        {
+                            "col": 5,
+                            "row": 5
+                        }
+                    ],
+                    "tag": "Move"
                 },
                 {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 3,
-                        "row": 4
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 2,
-                        "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "King",
-                    "pos": {
-                        "col": 3,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 1,
-                        "row": 3
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 5,
-                        "row": 5
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 0,
-                        "row": 2
-                    },
-                    "side": "White"
+                    "contents": [
+                        {
+                            "col": 1,
+                            "row": 0
+                        },
+                        {
+                            "col": 2,
+                            "row": 2
+                        }
+                    ],
+                    "tag": "Move"
                 }
-            ]
-        },
-        {
-            "checkState": {
-                "tag": "NoCheck"
-            },
-            "curSide": "White",
+            ],
             "pieces": [
                 {
                     "piece": "Pawn",
                     "pos": {
-                        "col": 1,
+                        "col": 0,
                         "row": 1
                     },
                     "side": "White"
@@ -1049,7 +1889,7 @@
                 {
                     "piece": "Pawn",
                     "pos": {
-                        "col": 5,
+                        "col": 4,
                         "row": 1
                     },
                     "side": "White"
@@ -1057,24 +1897,24 @@
                 {
                     "piece": "Pawn",
                     "pos": {
-                        "col": 2,
-                        "row": 6
+                        "col": 6,
+                        "row": 1
                     },
-                    "side": "Black"
+                    "side": "White"
                 },
                 {
                     "piece": "Pawn",
-                    "pos": {
-                        "col": 3,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Rook",
                     "pos": {
                         "col": 0,
-                        "row": 7
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 2,
+                        "row": 6
                     },
                     "side": "Black"
                 },
@@ -1082,6 +1922,14 @@
                     "piece": "Rook",
                     "pos": {
                         "col": 7,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 0,
                         "row": 0
                     },
                     "side": "White"
@@ -1089,15 +1937,15 @@
                 {
                     "piece": "Knight",
                     "pos": {
-                        "col": 1,
-                        "row": 0
+                        "col": 6,
+                        "row": 7
                     },
-                    "side": "White"
+                    "side": "Black"
                 },
                 {
                     "piece": "Bishop",
                     "pos": {
-                        "col": 2,
+                        "col": 5,
                         "row": 7
                     },
                     "side": "Black"
@@ -1106,6 +1954,14 @@
                     "piece": "Bishop",
                     "pos": {
                         "col": 2,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 5,
                         "row": 0
                     },
                     "side": "White"
@@ -1119,138 +1975,18 @@
                     "side": "Black"
                 },
                 {
-                    "piece": "King",
-                    "pos": {
-                        "col": 4,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 4,
-                        "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 2,
-                        "row": 5
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
-                        "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 5,
-                        "row": 5
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 3,
-                        "row": 2
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Bishop",
-                    "pos": {
-                        "col": 6,
-                        "row": 6
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "King",
-                    "pos": {
-                        "col": 4,
-                        "row": 1
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 0,
-                        "row": 4
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 0,
-                        "row": 1
-                    },
-                    "side": "White"
-                },
-                {
                     "piece": "Queen",
                     "pos": {
-                        "col": 6,
+                        "col": 3,
                         "row": 0
                     },
                     "side": "White"
                 },
                 {
-                    "piece": "Rook",
-                    "pos": {
-                        "col": 5,
-                        "row": 7
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 0,
-                        "row": 3
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Knight",
-                    "pos": {
-                        "col": 3,
-                        "row": 4
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 7,
-                        "row": 4
-                    },
-                    "side": "White"
-                },
-                {
-                    "piece": "Pawn",
-                    "pos": {
-                        "col": 6,
-                        "row": 3
-                    },
-                    "side": "Black"
-                },
-                {
-                    "piece": "Knight",
+                    "piece": "King",
                     "pos": {
                         "col": 4,
-                        "row": 5
+                        "row": 0
                     },
                     "side": "White"
                 },
@@ -1258,12 +1994,116 @@
                     "piece": "Pawn",
                     "pos": {
                         "col": 1,
+                        "row": 5
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 2
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 4,
                         "row": 4
                     },
                     "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 5,
+                        "row": 3
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 1,
+                        "row": 7
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "King",
+                    "pos": {
+                        "col": 5,
+                        "row": 6
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 3,
+                        "row": 4
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Rook",
+                    "pos": {
+                        "col": 6,
+                        "row": 0
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 1,
+                        "row": 2
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Bishop",
+                    "pos": {
+                        "col": 4,
+                        "row": 5
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 7,
+                        "row": 5
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 2,
+                        "row": 4
+                    },
+                    "side": "White"
+                },
+                {
+                    "piece": "Pawn",
+                    "pos": {
+                        "col": 6,
+                        "row": 5
+                    },
+                    "side": "Black"
+                },
+                {
+                    "piece": "Knight",
+                    "pos": {
+                        "col": 5,
+                        "row": 5
+                    },
+                    "side": "White"
                 }
             ]
         }
     ],
-    "seed": 1564090356
+    "seed": 1047525166
 }

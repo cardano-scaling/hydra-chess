@@ -4,11 +4,11 @@
 module Chess.Generators where
 
 import Chess.Game
+import Chess.GameState (ChessGame (..))
 import Control.Monad.State (MonadState (..), StateT, execStateT, lift)
+import Data.ByteString qualified as BS
+import PlutusLedgerApi.V2 (PubKeyHash (..), toBuiltin)
 import Test.QuickCheck (Arbitrary (..), Gen, choose, elements, listOf, vectorOf)
-import Chess.GameState (ChessGame(..))
-import PlutusLedgerApi.V2 (PubKeyHash(..), toBuiltin)
-import qualified Data.ByteString as BS
 
 -- * Generators
 
@@ -73,6 +73,10 @@ genMoves =
         move <- lift $ elements moves
         either (const $ pure ()) put (apply move game)
         genMove (n - 1)
+
+possibleMovesFor :: Side -> Game -> Gen Move
+possibleMovesFor side game@Game{pieces} =
+  elements $ concatMap ((`possibleMoves` game{curSide = side}) . pos) (filter (`hasSide` side) pieces)
 
 instance Arbitrary ChessGame where
   arbitrary = ChessGame <$> listOf genPubKeyHash <*> arbitrary

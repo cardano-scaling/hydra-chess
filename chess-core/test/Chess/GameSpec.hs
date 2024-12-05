@@ -99,9 +99,8 @@ spec = parallel $ do
 is_check_mate_given_cannot_evade_check :: Property
 is_check_mate_given_cannot_evade_check = do
   let game =
-        Game
+        mkGame
           Black
-          NoCheck
           [ PieceOnBoard King White (Pos 0 0)
           , PieceOnBoard Pawn White (Pos 1 0)
           , PieceOnBoard Knight Black (Pos 3 2)
@@ -112,9 +111,8 @@ is_check_mate_given_cannot_evade_check = do
 no_move_possible_after_check_mate :: Property
 no_move_possible_after_check_mate =
   let game =
-        Game
+        mkGame
           Black
-          NoCheck
           [ PieceOnBoard King White (Pos 0 0)
           , PieceOnBoard Pawn White (Pos 1 0)
           , PieceOnBoard Knight Black (Pos 3 2)
@@ -140,6 +138,7 @@ prop_move_must_remove_check side =
                     , PieceOnBoard piece (flipSide side) check
                     , PieceOnBoard otherPiece side other
                     ]
+                    []
                 moves = possibleMoves other game
              in not (null moves) ==> forAll (elements moves) $ \move ->
                   isLegalMove move game (not . isCheck side)

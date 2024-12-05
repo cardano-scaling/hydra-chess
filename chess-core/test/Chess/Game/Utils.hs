@@ -25,6 +25,7 @@ isIllegal game move =
         & counterexample ("after:\n" <> unpack (render game'))
         & counterexample ("before:\n" <> unpack (render game))
         & counterexample ("move: " <> show move)
+        & counterexample ("moves: " <> show (render <$> reverse (moves game')))
     Left err ->
       err
         === IllegalMove move

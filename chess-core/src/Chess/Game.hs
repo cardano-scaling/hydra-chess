@@ -83,6 +83,9 @@ PlutusTx.unstableMakeIsData ''PieceOnBoard
 instance Eq PieceOnBoard where
   PieceOnBoard p s pos == PieceOnBoard p' s' pos' = p == p' && s == s' && pos == pos'
 
+hasSide :: PieceOnBoard -> Side -> Bool
+hasSide PieceOnBoard{side} side' = side == side'
+
 data Check = NoCheck | Check Side | CheckMate Side
   deriving (Haskell.Eq, Haskell.Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
@@ -95,22 +98,53 @@ instance Eq Check where
   CheckMate side == CheckMate side' = side == side'
   _ == _ = False
 
+data Move
+  = Move Position Position
+  | CastleKing
+  | CastleQueen
+  deriving (Haskell.Eq, Haskell.Show, Generic, ToJSON, FromJSON)
+
+PlutusTx.unstableMakeIsData ''Move
+
+instance Eq Move where
+  Move f t == Move f' t' = f == f' && t == t'
+  CastleQueen == CastleQueen = True
+  CastleKing == CastleKing = True
+  _ == _ = False
+
+instance Arbitrary Move where
+  arbitrary = do
+    from <- arbitrary
+    to <- arbitrary `suchThat` (/= from)
+    Prelude.pure $ Move from to
+
+revert :: Move -> Move
+revert = \case
+  (Move from to) -> Move to from
+  other -> other -- FIXME: does this make sense? again points at the fact the Move type is incorrect
+
 data Game = Game
   { curSide :: Side
   , checkState :: Check
   , pieces :: [PieceOnBoard]
+  , moves :: [Move]
   }
-  deriving (Haskell.Eq, Haskell.Show, Generic)
+  deriving (Haskell.Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
 PlutusTx.unstableMakeIsData ''Game
 
+-- FIXME: this instance is inconsistent and exists solely for
+-- the purpose of easing tests
+instance Haskell.Eq Game where
+  Game s c p _ == Game s' c' p' _ = s == s' && p == p' && c == c'
+
 instance Eq Game where
-  Game s c p == Game s' c' p' = s == s' && p == p' && c == c'
+  Game s c p m == Game s' c' p' m' = s == s' && p == p' && c == c' && m == m'
 
 mkGame :: Side -> [PieceOnBoard] -> Game
 mkGame curSide pieces =
-  Game{curSide, pieces, checkState = NoCheck}
+  Game{curSide, pieces, checkState = NoCheck, moves = []}
 
 initialGame :: Game
 initialGame =
@@ -130,6 +164,7 @@ initialGame =
           <> [PieceOnBoard Queen White (Pos 0 3)]
           <> [PieceOnBoard King Black (Pos 7 4)]
           <> [PieceOnBoard King White (Pos 0 4)]
+    , moves = []
     }
 
 findPieces :: Piece -> Side -> Game -> [PieceOnBoard]
@@ -152,20 +187,6 @@ isEndGame Game{checkState} =
     CheckMate{} -> True
     _ -> False
 
-data Move
-  = Move Position Position
-  | CastleKing
-  | CastleQueen
-  deriving (Haskell.Eq, Haskell.Show, Generic, ToJSON, FromJSON)
-
-PlutusTx.unstableMakeIsData ''Move
-
-instance Arbitrary Move where
-  arbitrary = do
-    from <- arbitrary
-    to <- arbitrary `suchThat` (/= from)
-    Prelude.pure $ Move from to
-
 data IllegalMove
   = NotMoving Move
   | IllegalMove Move
@@ -179,8 +200,10 @@ data IllegalMove
 PlutusTx.unstableMakeIsData ''IllegalMove
 
 apply :: Move -> Game -> Either IllegalMove Game
-apply move game =
-  doMove move game >>= updateCheckState
+apply move game = do
+  game' <- doMove move game
+  game'' <- updateCheckState game'
+  pure $ game''{moves = move : moves game''}
 {-# INLINEABLE apply #-}
 
 updateCheckState :: Game -> Either IllegalMove Game
@@ -263,6 +286,7 @@ castleKingSide :: Game -> Either IllegalMove Game
 castleKingSide game@Game{curSide} =
   if
     | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleKing
+    | kingHasMoved game curSide -> Left $ IllegalMove CastleKing
     | otherwise ->
         case curSide of
           White ->
@@ -279,10 +303,27 @@ castleKingSide game@Game{curSide} =
   kingsMove Black = [game, movePiece game (Pos 7 4) (Pos 7 5), movePiece game (Pos 7 4) (Pos 7 6)]
 {-# INLINEABLE castleKingSide #-}
 
+kingHasMoved :: Game -> Side -> Bool
+kingHasMoved Game{moves} = \case
+  White -> any isWhiteKingMove moves
+  Black -> any isBlackKingMove moves
+ where
+  isWhiteKingMove :: Move -> Bool
+  isWhiteKingMove = \case
+    (Move f _) -> f == Pos 0 4
+    _ -> True
+
+  isBlackKingMove :: Move -> Bool
+  isBlackKingMove = \case
+    (Move f _) -> f == Pos 7 4
+    _ -> True
+{-# INLINEABLE kingHasMoved #-}
+
 castleQueenSide :: Game -> Either IllegalMove Game
 castleQueenSide game@Game{curSide} =
   if
     | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleQueen
+    | kingHasMoved game curSide -> Left $ IllegalMove CastleQueen
     | otherwise ->
         case curSide of
           White ->
