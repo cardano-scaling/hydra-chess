@@ -11,7 +11,7 @@ import Data.Function ((&))
 import Data.Text (unpack)
 import Test.Hspec (Spec)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Property, counterexample, (===))
+import Test.QuickCheck (Property, counterexample, label, (===))
 
 spec :: Spec
 spec = do
@@ -23,3 +23,7 @@ parse_and_render_moves move =
    in parseMove repr
         === Right move
         & counterexample ("rendered: " <> repr)
+        & label (typeOf move)
+ where
+  typeOf :: Move -> String
+  typeOf = head . words . show

@@ -6,7 +6,7 @@ module Chess.Parse where
 
 import Chess.Game (Move (..), Position (..))
 import Control.Monad.Catch (Exception)
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Except (MonadError (catchError), throwError)
 import Control.Monad.State (MonadState, evalStateT, get, put)
 import Data.Char (ord)
 import Data.Functor (void)
@@ -23,14 +23,23 @@ parseMove :: String -> ParseResult
 parseMove = evalStateT parser
 
 parser :: (MonadError Err m, MonadState String m) => m Move
-parser = do
-  c <- parseColumn
-  r <- parseRow
-  dash
-  c' <- parseColumn
-  r' <- parseRow
-  pure $ Move (Pos r c) (Pos r' c')
+parser = parseMovePiece `catchError` const parseCastling
  where
+  parseMovePiece = do
+    c <- parseColumn
+    r <- parseRow
+    dash
+    c' <- parseColumn
+    r' <- parseRow
+    pure $ Move (Pos r c) (Pos r' c')
+
+  parseCastling = do
+    s <- get
+    case s of
+      ('O' : '-' : 'O' : '-' : 'O' : rest) -> put rest >> pure CastleQueen
+      ('O' : '-' : 'O' : rest) -> put rest >> pure CastleKing
+      _ -> parseError $ "expected 'O-O' or 'O-O-O', found: " <> s
+
   parseError = throwError . Err . pack
 
   dash = do

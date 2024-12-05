@@ -17,7 +17,7 @@ import Control.Monad (guard)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import GHC.Generics (Generic)
 import PlutusTx qualified
-import Test.QuickCheck (Arbitrary (..), choose, suchThat)
+import Test.QuickCheck (Arbitrary (..), choose, elements, frequency, suchThat)
 import Prelude qualified
 import Prelude qualified as Haskell
 
@@ -113,10 +113,13 @@ instance Eq Move where
   _ == _ = False
 
 instance Arbitrary Move where
-  arbitrary = do
-    from <- arbitrary
-    to <- arbitrary `suchThat` (/= from)
-    Prelude.pure $ Move from to
+  arbitrary = frequency [(9, aMove), (1, aCastling)]
+   where
+    aMove = do
+      from <- arbitrary
+      to <- arbitrary `suchThat` (/= from)
+      Prelude.pure $ Move from to
+    aCastling = elements [CastleKing, CastleQueen]
 
 revert :: Move -> Move
 revert = \case
