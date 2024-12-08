@@ -288,22 +288,41 @@ doMove CastleQueen game =
 castleKingSide :: Game -> Either IllegalMove Game
 castleKingSide game@Game{curSide} =
   if
-    | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleKing
+    | any (isInCheck curSide) kingsMove -> Left $ IllegalMove CastleKing
     | kingHasMoved game curSide -> Left $ IllegalMove CastleKing
     | otherwise ->
-        case curSide of
-          White ->
-            Right
-              $ let game' = movePiece game (Pos 0 4) (Pos 0 6)
-                 in movePiece game' (Pos 0 7) (Pos 0 5)
-          Black ->
-            Right
-              $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
-                 in movePiece game' (Pos 7 4) (Pos 7 6)
+        case pieceOnPathFromKingToRook of
+          Just PieceOnBoard{piece = Rook} -> doCastle
+          Just PieceOnBoard{pos} -> Left $ MoveBlocked pos king rook
+          _other -> doCastle
  where
-  kingsMove :: Side -> [Game]
-  kingsMove White = [game, movePiece game (Pos 0 4) (Pos 0 5), movePiece game (Pos 0 4) (Pos 0 6)]
-  kingsMove Black = [game, movePiece game (Pos 7 4) (Pos 7 5), movePiece game (Pos 7 4) (Pos 7 6)]
+  doCastle =
+    case curSide of
+      White ->
+        Right
+          $ let game' = movePiece game (Pos 0 4) (Pos 0 6)
+             in movePiece game' (Pos 0 7) (Pos 0 5)
+      Black ->
+        Right
+          $ let game' = movePiece game (Pos 7 7) (Pos 7 5)
+             in movePiece game' (Pos 7 4) (Pos 7 6)
+
+  kingsMove :: [Game]
+  kingsMove = case curSide of
+    White -> [game, movePiece game (Pos 0 4) (Pos 0 5), movePiece game (Pos 0 4) (Pos 0 6)]
+    Black -> [game, movePiece game (Pos 7 4) (Pos 7 5), movePiece game (Pos 7 4) (Pos 7 6)]
+
+  pieceOnPathFromKingToRook = game `firstPieceOn` path king rook
+
+  rook :: Position
+  rook = case curSide of
+    White -> Pos 0 7
+    Black -> Pos 7 7
+
+  king :: Position
+  king = case curSide of
+    White -> Pos 0 4
+    Black -> Pos 7 4
 {-# INLINEABLE castleKingSide #-}
 
 kingHasMoved :: Game -> Side -> Bool
@@ -328,19 +347,36 @@ castleQueenSide game@Game{curSide} =
     | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleQueen
     | kingHasMoved game curSide -> Left $ IllegalMove CastleQueen
     | otherwise ->
-        case curSide of
-          White ->
-            Right
-              $ let game' = movePiece game (Pos 0 4) (Pos 0 2)
-                 in movePiece game' (Pos 0 0) (Pos 0 3)
-          Black ->
-            Right
-              $ let game' = movePiece game (Pos 7 0) (Pos 7 3)
-                 in movePiece game' (Pos 7 4) (Pos 7 2)
+        case pieceOnPathFromKingToRook of
+          Just PieceOnBoard{piece = Rook} -> doCastle
+          Just PieceOnBoard{pos} -> Left $ MoveBlocked pos king rook
+          _other -> doCastle
  where
+  doCastle = case curSide of
+    White ->
+      Right
+        $ let game' = movePiece game (Pos 0 4) (Pos 0 2)
+           in movePiece game' (Pos 0 0) (Pos 0 3)
+    Black ->
+      Right
+        $ let game' = movePiece game (Pos 7 0) (Pos 7 3)
+           in movePiece game' (Pos 7 4) (Pos 7 2)
+
   kingsMove :: Side -> [Game]
   kingsMove White = [game, movePiece game (Pos 0 4) (Pos 0 3), movePiece game (Pos 0 4) (Pos 0 2)]
   kingsMove Black = [game, movePiece game (Pos 7 4) (Pos 7 3), movePiece game (Pos 7 4) (Pos 7 2)]
+
+  pieceOnPathFromKingToRook = game `firstPieceOn` path king rook
+
+  rook :: Position
+  rook = case curSide of
+    White -> Pos 0 0
+    Black -> Pos 7 0
+
+  king :: Position
+  king = case curSide of
+    White -> Pos 0 4
+    Black -> Pos 7 4
 {-# INLINEABLE castleQueenSide #-}
 
 moveKing :: Position -> Position -> Game -> Either IllegalMove Game

@@ -5,6 +5,7 @@ module Chess.Render where
 
 import Chess.Game (
   Game (..),
+  IllegalMove,
   Move (..),
   Piece (..),
   PieceOnBoard (PieceOnBoard),
@@ -38,6 +39,12 @@ instance Render Game where
         raws = reverse $ splitEvery 8 allPos
         rows = zipWith (\cs n -> intToDigit n : ' ' : concat cs) raws [8, 7 .. 1]
      in Text.unlines ((Text.pack <$> rows) <> ["  a b c d e f g h "])
+
+instance Render IllegalMove where
+  render move = pack $ "Illegal move: " <> show move
+
+instance (Render a, Render b) => Render (Either a b) where
+  render = either render render
 
 black :: Char -> [Char]
 black s = "\ESC[38;5;0m\ESC[48;2;199;132;67m" <> [s, ' '] <> "\ESC[0m"

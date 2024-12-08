@@ -39,13 +39,13 @@ isBlocked game move =
         & counterexample ("after:\n" <> unpack (render game'))
         & counterexample ("before:\n" <> unpack (render game))
         & counterexample ("move: " <> show move)
+    Left MoveBlocked{} ->
+      property True
+        & counterexample ("game:\n" <> unpack (render game))
     Left err ->
-      err
-        === MoveBlocked pos from to
-        & counterexample ("game: " <> show game)
- where
-  Move from to = move
-  Just PieceOnBoard{pos} = game `firstPieceOn` path from to
+      property False
+        & counterexample ("error: " <> show err)
+        & counterexample ("game:\n" <> unpack (render game))
 
 isLegalMove ::
   (Testable a) =>

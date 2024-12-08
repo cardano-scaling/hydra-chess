@@ -8,7 +8,7 @@ module Chess.Game.Castling where
 
 import Chess.Game
 
-import Chess.Game.Utils (isIllegal)
+import Chess.Game.Utils (isBlocked, isIllegal)
 import Chess.Generators (
   RookLike (..),
   generateMove,
@@ -39,6 +39,11 @@ castlingSpec = do
   it "is possible queen-side for Black" black_can_castle_queen_side
   prop "is not possible if king would move through position in check" prop_cannot_castle_if_king_would_be_in_check
   prop "is not possible if king already moved" prop_cannot_castle_if_king_has_moved
+  prop "is not possible if there are pieces between king and rook" prop_cannot_castle_if_row_not_empty
+
+prop_cannot_castle_if_row_not_empty :: Castle -> Property
+prop_cannot_castle_if_row_not_empty castle =
+  isBlocked initialGame (toMove castle)
 
 prop_cannot_castle_if_king_has_moved :: Side -> Castle -> Property
 prop_cannot_castle_if_king_has_moved side castle =
@@ -110,7 +115,7 @@ black_can_castle_queen_side =
         Right g -> do
           findPieces King Black g `shouldBe` [PieceOnBoard King Black (Pos 7 2)]
           findPieces Rook Black g `shouldBe` [PieceOnBoard Rook Black (Pos 7 7), PieceOnBoard Rook Black (Pos 7 3)]
-        Left e -> fail ("cannot apply castling for black on queen side: " <> show e)
+        Left e -> fail ("cannot apply castling for black on queen side: " <> show e <> "\n" <> unpack (render game'))
 
 prop_cannot_castle_if_king_would_be_in_check :: Property
 prop_cannot_castle_if_king_would_be_in_check =
