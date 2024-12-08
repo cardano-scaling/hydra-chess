@@ -26,6 +26,7 @@ import Test.QuickCheck (
   counterexample,
   elements,
   forAll,
+  forAllBlind,
   property,
   suchThat,
   tabulate,
@@ -33,6 +34,7 @@ import Test.QuickCheck (
 
 castlingSpec :: SpecWith ()
 castlingSpec = do
+  prop "requires king and rook to be at initial position" prop_requires_king_rook_at_initial_position
   it "is possible kingside for White" white_can_castle_king_side
   it "is possible kingside for Black" black_can_castle_king_side
   it "is possible queen-side for White" white_can_castle_queen_side
@@ -42,13 +44,44 @@ castlingSpec = do
   prop "is not possible if king already moved" prop_cannot_castle_if_king_has_moved
   prop "is not possible if there are pieces between king and rook" prop_cannot_castle_if_row_not_empty
 
+prop_requires_king_rook_at_initial_position :: Side -> Castle -> Property
+prop_requires_king_rook_at_initial_position side castle =
+  forAllBlind (elements [King, Rook]) $ \castlingPiece ->
+    forAll (possibleMovesWithout castlingPiece) $ \(m@(Move from _), g) ->
+      not (isCastling m)
+        & counterexample ("game:\n" <> unpack (render g))
+        & tabulate "Side" [show side]
+        & tabulate "Moved" [show $ piece <$> pieceAt from g]
+ where
+  possibleMovesWithout piece =
+    let g = game{pieces = filter ((/= toRemove piece) . pos) $ pieces game}
+     in (,g) <$> possibleMovesFor side g
+
+  toCastlingPosition = foldM (flip apply) initialGame
+
+  Right game = case (side, castle) of
+    (White, KingCastle) -> toCastlingPosition whiteKingCastlingPosition
+    (White, QueenCastle) -> toCastlingPosition whiteQueenCastlingPosition
+    (Black, KingCastle) -> toCastlingPosition blackKingCastlingPosition
+    (Black, QueenCastle) -> toCastlingPosition blackQueenCastlingPosition
+
+  toRemove piece =
+    case (piece, side, castle) of
+      (King, White, _) -> Pos 0 4 -- Never happens in real game
+      (King, Black, _) -> Pos 7 4 -- Never happens in real game
+      (Rook, White, KingCastle) -> Pos 0 7
+      (Rook, White, QueenCastle) -> Pos 0 0
+      (Rook, Black, KingCastle) -> Pos 7 7
+      (Rook, Black, QueenCastle) -> Pos 7 0
+      _ -> error "should not happen"
+
 prop_cannot_castle_if_row_not_empty :: Castle -> Property
 prop_cannot_castle_if_row_not_empty castle =
   isBlocked initialGame (toMove castle)
 
 prop_cannot_castle_if_king_has_moved :: Side -> Castle -> Property
 prop_cannot_castle_if_king_has_moved side castle =
-  forAll (generateMove kingPosition game') $ \kingMove ->
+  forAll nonCastlingMove $ \kingMove ->
     forAll (possibleMovesFor (flipSide side) game') $ \otherMove ->
       let Right game'' = foldM (flip apply) game' [kingMove, otherMove, revert kingMove]
        in forAll (possibleMovesFor (flipSide side) game'') $ \otherMove' ->
@@ -56,9 +89,11 @@ prop_cannot_castle_if_king_has_moved side castle =
               Right g ->
                 isIllegal g (toMove castle)
                   & tabulate "Side" [show side]
-                  & tabulate "Caste" [unpack $ render $ toMove castle]
+                  & tabulate "Castle" [unpack $ render $ toMove castle]
               Left err -> property False & counterexample ("error :  " <> show err)
  where
+  nonCastlingMove =
+    generateMove kingPosition game' `suchThat` (not . isCastling)
   moves = case (side, castle) of
     (White, KingCastle) -> whiteKingCastlingPosition
     (White, QueenCastle) -> whiteQueenCastlingPosition

@@ -256,7 +256,7 @@ prop_bishop_can_take_enemy_piece (BishopLike piece) =
   forAll anyPos $ \pos ->
     forAll arbitrary $ \side ->
       let startGame = mkGame side [PieceOnBoard piece side pos]
-       in forAll (elements $ possibleMoves pos startGame) $ \move@(Move _ to) ->
+       in forAll (generateMove pos startGame) $ \move@(Move _ to) ->
             let game =
                   mkGame
                     side
@@ -325,7 +325,7 @@ prop_can_take_enemy_piece (RookLike piece) =
   forAll anyPos $ \pos ->
     forAll arbitrary $ \side ->
       let startGame = mkGame side [PieceOnBoard piece side pos]
-       in forAll (elements $ possibleMoves pos startGame) $ \move@(Move _ to) ->
+       in forAll (generateMove pos startGame) $ \move@(Move _ to) ->
             let game =
                   mkGame
                     side

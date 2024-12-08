@@ -121,6 +121,12 @@ instance Arbitrary Move where
       Prelude.pure $ Move from to
     aCastling = elements [CastleKing, CastleQueen]
 
+isCastling :: Move -> Bool
+isCastling = \case
+  CastleKing -> True
+  CastleQueen -> True
+  _ -> False
+
 revert :: Move -> Move
 revert = \case
   (Move from to) -> Move to from
@@ -291,6 +297,7 @@ doMove CastleQueen game =
 castleKingSide :: Game -> Either IllegalMove Game
 castleKingSide game@Game{curSide} =
   if
+    | piecesNotAtInitialPosition -> Left $ IllegalMove CastleKing
     | any (isInCheck curSide) kingsMove -> Left $ IllegalMove CastleKing
     | kingHasMoved game curSide -> Left $ IllegalMove CastleKing
     | otherwise ->
@@ -299,6 +306,8 @@ castleKingSide game@Game{curSide} =
           Just PieceOnBoard{pos} -> Left $ MoveBlocked pos king rook
           _other -> doCastle
  where
+  piecesNotAtInitialPosition =
+    isNothing (pieceAt rook game) || isNothing (pieceAt king game)
   doCastle =
     case curSide of
       White ->
@@ -347,6 +356,7 @@ kingHasMoved Game{moves} = \case
 castleQueenSide :: Game -> Either IllegalMove Game
 castleQueenSide game@Game{curSide} =
   if
+    | piecesNotAtInitialPosition -> Left $ IllegalMove CastleQueen
     | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleQueen
     | kingHasMoved game curSide -> Left $ IllegalMove CastleQueen
     | otherwise ->
@@ -355,6 +365,9 @@ castleQueenSide game@Game{curSide} =
           Just PieceOnBoard{pos} -> Left $ MoveBlocked pos king rook
           _other -> doCastle
  where
+  piecesNotAtInitialPosition =
+    isNothing (pieceAt rook game) || isNothing (pieceAt king game)
+
   doCastle = case curSide of
     White ->
       Right
@@ -559,6 +572,7 @@ possibleMoves pos@(Pos r c) game =
         , c' <- [0 .. 7]
         , (r, c) /= (r', c')
         ]
+          <> [CastleKing, CastleQueen]
    in filter (\move -> isRight $ apply move game) allMoves
 
 accessibleDiagonals :: Position -> [Position]
