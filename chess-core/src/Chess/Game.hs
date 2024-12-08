@@ -13,7 +13,7 @@ module Chess.Game where
 
 import PlutusTx.Prelude
 
-import Control.Monad (guard)
+import Control.Monad (guard, (>=>))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import GHC.Generics (Generic)
 import PlutusTx qualified
@@ -203,10 +203,13 @@ data IllegalMove
 PlutusTx.unstableMakeIsData ''IllegalMove
 
 apply :: Move -> Game -> Either IllegalMove Game
-apply move game = do
-  game' <- doMove move game
-  game'' <- updateCheckState game'
-  pure $ game''{moves = move : moves game''}
+apply move =
+  doMove move >=> updateSide >=> updateCheckState >=> updateMoves
+ where
+  updateSide g@Game{curSide} =
+    Right $ g{curSide = flipSide curSide}
+  updateMoves g@Game{moves} =
+    Right $ g{moves = move : moves}
 {-# INLINEABLE apply #-}
 
 updateCheckState :: Game -> Either IllegalMove Game
@@ -463,19 +466,18 @@ pieceAt position Game{pieces} =
 {-# INLINEABLE pieceAt #-}
 
 movePiece :: Game -> Position -> Position -> Game
-movePiece game@Game{curSide, pieces} from to =
+movePiece game@Game{pieces} from to =
   let
     att = pieceAt from game
     newPos = maybe [] (\PieceOnBoard{piece, side} -> [PieceOnBoard{piece, side, pos = to}]) att
    in
     game
-      { curSide = flipSide curSide
-      , pieces = filter (\PieceOnBoard{pos} -> pos /= from) pieces <> newPos
+      { pieces = filter (\PieceOnBoard{pos} -> pos /= from) pieces <> newPos
       }
 {-# INLINEABLE movePiece #-}
 
 takePiece :: Game -> Position -> Position -> Either IllegalMove Game
-takePiece game@Game{curSide, pieces} from to =
+takePiece game@Game{pieces} from to =
   let
     att = pieceAt from game
     def = pieceAt to game
@@ -489,8 +491,7 @@ takePiece game@Game{curSide, pieces} from to =
       Just p ->
         Right
           $ game
-            { curSide = flipSide curSide
-            , pieces = filter (\PieceOnBoard{pos} -> pos /= from && pos /= to) pieces <> [p]
+            { pieces = filter (\PieceOnBoard{pos} -> pos /= from && pos /= to) pieces <> [p]
             }
       Nothing -> Left $ IllegalMove (Move from to)
 {-# INLINEABLE takePiece #-}

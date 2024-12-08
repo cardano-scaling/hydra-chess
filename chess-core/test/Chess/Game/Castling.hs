@@ -37,6 +37,7 @@ castlingSpec = do
   it "is possible kingside for Black" black_can_castle_king_side
   it "is possible queen-side for White" white_can_castle_queen_side
   it "is possible queen-side for Black" black_can_castle_queen_side
+  it "is a move that changes current side" changes_current_side
   prop "is not possible if king would move through position in check" prop_cannot_castle_if_king_would_be_in_check
   prop "is not possible if king already moved" prop_cannot_castle_if_king_has_moved
   prop "is not possible if there are pieces between king and rook" prop_cannot_castle_if_row_not_empty
@@ -115,6 +116,16 @@ black_can_castle_queen_side =
         Right g -> do
           findPieces King Black g `shouldBe` [PieceOnBoard King Black (Pos 7 2)]
           findPieces Rook Black g `shouldBe` [PieceOnBoard Rook Black (Pos 7 7), PieceOnBoard Rook Black (Pos 7 3)]
+        Left e -> fail ("cannot apply castling for black on queen side: " <> show e <> "\n" <> unpack (render game'))
+
+changes_current_side :: Expectation
+changes_current_side =
+  let game = initialGame
+      moves = blackQueenCastlingPosition
+      game' = foldM (flip apply) game moves
+   in case apply CastleQueen =<< game' of
+        Right Game{curSide} ->
+          curSide `shouldBe` White
         Left e -> fail ("cannot apply castling for black on queen side: " <> show e <> "\n" <> unpack (render game'))
 
 prop_cannot_castle_if_king_would_be_in_check :: Property
