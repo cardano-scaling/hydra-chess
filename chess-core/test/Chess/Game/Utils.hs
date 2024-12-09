@@ -12,13 +12,26 @@ import Test.QuickCheck (
   Testable,
   counterexample,
   property,
-  (===),
  )
 
 -- * Generic Properties
 
 isIllegal :: Game -> Move -> Property
 isIllegal game move =
+  isIllegalMoveMatching game move (== IllegalMove move)
+
+isBlocked :: Game -> Move -> Property
+isBlocked game move =
+  isIllegalMoveMatching game move isBlocked'
+    & counterexample ("game:\n" <> unpack (render game))
+ where
+  isBlocked' :: IllegalMove -> Bool
+  isBlocked' = \case
+    MoveBlocked{} -> True
+    _ -> False
+
+isIllegalMoveMatching :: (Testable a) => Game -> Move -> (IllegalMove -> a) -> Property
+isIllegalMoveMatching game move predicate =
   case apply move game of
     Right game' ->
       property False
@@ -27,23 +40,7 @@ isIllegal game move =
         & counterexample ("move: " <> show move)
         & counterexample ("moves: " <> show (render <$> reverse (moves game')))
     Left err ->
-      err
-        === IllegalMove move
-        & counterexample ("game: " <> show game)
-
-isBlocked :: Game -> Move -> Property
-isBlocked game move =
-  case apply move game of
-    Right game' ->
-      property False
-        & counterexample ("after:\n" <> unpack (render game'))
-        & counterexample ("before:\n" <> unpack (render game))
-        & counterexample ("move: " <> show move)
-    Left MoveBlocked{} ->
-      property True
-        & counterexample ("game:\n" <> unpack (render game))
-    Left err ->
-      property False
+      predicate err
         & counterexample ("error: " <> show err)
         & counterexample ("game:\n" <> unpack (render game))
 

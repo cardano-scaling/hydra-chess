@@ -196,9 +196,15 @@ isEndGame Game{checkState} =
     CheckMate{} -> True
     _ -> False
 
+data NoCastlingReason = PiecesMoved Side | PiecesInBetween Position Piece | KingInCheck
+  deriving (Haskell.Eq, Haskell.Show)
+
+PlutusTx.unstableMakeIsData ''NoCastlingReason
+
 data IllegalMove
   = NotMoving Move
   | IllegalMove Move
+  | NoCastling NoCastlingReason
   | WrongSideToPlay Side Move
   | MoveBlocked Position Position Position
   | StillInCheck Side
@@ -298,12 +304,12 @@ castleKingSide :: Game -> Either IllegalMove Game
 castleKingSide game@Game{curSide} =
   if
     | piecesNotAtInitialPosition -> Left $ IllegalMove CastleKing
-    | any (isInCheck curSide) kingsMove -> Left $ IllegalMove CastleKing
-    | kingHasMoved game curSide -> Left $ IllegalMove CastleKing
+    | kingHasMoved game curSide -> Left $ NoCastling (PiecesMoved curSide)
+    | any (isInCheck curSide) kingsMove -> Left $ NoCastling KingInCheck
     | otherwise ->
         case pieceOnPathFromKingToRook of
           Just PieceOnBoard{piece = Rook} -> doCastle
-          Just PieceOnBoard{pos} -> Left $ MoveBlocked pos king rook
+          Just PieceOnBoard{pos, piece} -> Left $ NoCastling (PiecesInBetween pos piece)
           _other -> doCastle
  where
   piecesNotAtInitialPosition =
@@ -345,24 +351,24 @@ kingHasMoved Game{moves} = \case
   isWhiteKingMove :: Move -> Bool
   isWhiteKingMove = \case
     (Move f _) -> f == Pos 0 4
-    _ -> True
+    _ -> False
 
   isBlackKingMove :: Move -> Bool
   isBlackKingMove = \case
     (Move f _) -> f == Pos 7 4
-    _ -> True
+    _ -> False
 {-# INLINEABLE kingHasMoved #-}
 
 castleQueenSide :: Game -> Either IllegalMove Game
 castleQueenSide game@Game{curSide} =
   if
     | piecesNotAtInitialPosition -> Left $ IllegalMove CastleQueen
-    | any (isInCheck curSide) (kingsMove curSide) -> Left $ IllegalMove CastleQueen
-    | kingHasMoved game curSide -> Left $ IllegalMove CastleQueen
+    | kingHasMoved game curSide -> Left $ NoCastling (PiecesMoved curSide)
+    | any (isInCheck curSide) (kingsMove curSide) -> Left $ NoCastling KingInCheck
     | otherwise ->
         case pieceOnPathFromKingToRook of
           Just PieceOnBoard{piece = Rook} -> doCastle
-          Just PieceOnBoard{pos} -> Left $ MoveBlocked pos king rook
+          Just PieceOnBoard{pos, piece} -> Left $ NoCastling (PiecesInBetween pos piece)
           _other -> doCastle
  where
   piecesNotAtInitialPosition =

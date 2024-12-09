@@ -8,7 +8,7 @@ module Chess.Game.Castling where
 
 import Chess.Game
 
-import Chess.Game.Utils (isBlocked, isIllegal)
+import Chess.Game.Utils (isIllegalMoveMatching)
 import Chess.Generators (
   RookLike (..),
   generateMove,
@@ -40,6 +40,7 @@ castlingSpec = do
   it "is possible queen-side for White" white_can_castle_queen_side
   it "is possible queen-side for Black" black_can_castle_queen_side
   it "is a move that changes current side" changes_current_side
+  it "is possible for both sides" both_can_castle_king_side
   prop "is not possible if king would move through position in check" prop_cannot_castle_if_king_would_be_in_check
   prop "is not possible if king already moved" prop_cannot_castle_if_king_has_moved
   prop "is not possible if there are pieces between king and rook" prop_cannot_castle_if_row_not_empty
@@ -73,11 +74,15 @@ prop_requires_king_rook_at_initial_position side castle =
       (Rook, White, QueenCastle) -> Pos 0 0
       (Rook, Black, KingCastle) -> Pos 7 7
       (Rook, Black, QueenCastle) -> Pos 7 0
-      _ -> error "should not happen"
+      other -> error ("should not happen: " <> show other)
 
 prop_cannot_castle_if_row_not_empty :: Castle -> Property
 prop_cannot_castle_if_row_not_empty castle =
-  isBlocked initialGame (toMove castle)
+  isIllegalMoveMatching initialGame (toMove castle) isErrPiecesBetween
+ where
+  isErrPiecesBetween = \case
+    NoCastling PiecesInBetween{} -> True
+    _other -> False
 
 prop_cannot_castle_if_king_has_moved :: Side -> Castle -> Property
 prop_cannot_castle_if_king_has_moved side castle =
@@ -87,10 +92,10 @@ prop_cannot_castle_if_king_has_moved side castle =
        in forAll (possibleMovesFor (flipSide side) game'') $ \otherMove' ->
             case apply otherMove' game'' of
               Right g ->
-                isIllegal g (toMove castle)
+                isIllegalMoveMatching g (toMove castle) (== NoCastling (PiecesMoved side))
                   & tabulate "Side" [show side]
                   & tabulate "Castle" [unpack $ render $ toMove castle]
-              Left err -> property False & counterexample ("error :  " <> show err)
+              Left err -> property False & counterexample ("error : " <> show err)
  where
   nonCastlingMove =
     generateMove kingPosition game' `suchThat` (not . isCastling)
@@ -142,6 +147,17 @@ black_can_castle_king_side =
           findPieces Rook Black g `shouldBe` [PieceOnBoard Rook Black (Pos 7 0), PieceOnBoard Rook Black (Pos 7 5)]
         Left e -> fail ("cannot apply castling for black on king side: " <> show e)
 
+both_can_castle_king_side :: Expectation
+both_can_castle_king_side =
+  let game = initialGame
+      moves = dualCastlingPosition
+      game' = foldM (flip apply) game moves
+   in case game' >>= apply CastleKing >>= apply CastleKing of
+        Right g -> do
+          findPieces King Black g `shouldBe` [PieceOnBoard King Black (Pos 7 6)]
+          findPieces King White g `shouldBe` [PieceOnBoard King White (Pos 0 6)]
+        Left e -> fail ("cannot apply castling for black then white on king side: " <> show e)
+
 black_can_castle_queen_side :: Expectation
 black_can_castle_queen_side =
   let game = initialGame
@@ -170,7 +186,7 @@ prop_cannot_castle_if_king_would_be_in_check =
       forAll (elements (concatMap accessibleOrthogonally $ kingsPositions move side) `suchThat` notOnCastlingRow side) $ \threat ->
         forAll arbitrary $ \(RookLike piece) ->
           let game = mkGame side (PieceOnBoard piece (flipSide side) threat : castlingPosition side)
-           in isIllegal game move
+           in isIllegalMoveMatching game move (== NoCastling KingInCheck)
  where
   kingsPositions move side = case (move, side) of
     (CastleQueen, White) -> [Pos 0 4, Pos 0 2, Pos 0 3]
@@ -229,6 +245,17 @@ blackKingCastlingPosition =
   , Move (Pos 0 6) (Pos 2 5) -- g1-f3
   , Move (Pos 7 6) (Pos 5 5) -- g8-f6
   , Move (Pos 1 3) (Pos 2 3) -- d2-d3
+  ]
+
+dualCastlingPosition :: [Move]
+dualCastlingPosition =
+  [ Move (Pos 1 4) (Pos 3 4) -- e2-e4
+  , Move (Pos 6 4) (Pos 4 4) -- e7-e5
+  , Move (Pos 1 3) (Pos 3 3) -- d2-d4
+  , Move (Pos 7 6) (Pos 5 5) -- g8-f6
+  , Move (Pos 0 5) (Pos 2 3) -- f1-d3
+  , Move (Pos 7 5) (Pos 5 3) -- f8-d6
+  , Move (Pos 0 6) (Pos 2 5) -- g1-f3
   ]
 
 blackQueenCastlingPosition :: [Move]
