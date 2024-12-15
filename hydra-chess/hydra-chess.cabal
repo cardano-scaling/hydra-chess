@@ -1,6 +1,6 @@
-cabal-version:      2.4
-name:               hydra-chess
-version:            0.1.0.0
+cabal-version: 2.4
+name:          hydra-chess
+version:       0.1.0.0
 
 -- A short (one-line) description of the package.
 -- synopsis:
@@ -13,8 +13,8 @@ version:            0.1.0.0
 
 -- The license under which the package is released.
 -- license:
-author:             Arnaud Bailly
-maintainer:         arnaud.bailly@iohk.io
+author:        Arnaud Bailly
+maintainer:    arnaud.bailly@iohk.io
 
 -- A copyright notice.
 -- copyright:
@@ -27,51 +27,49 @@ library
   exposed-modules:
     Games.Cardano.Crypto
     Games.Cardano.Network
-
     Games.Logging
     Games.Options
     Games.Run
     Games.Run.Cardano
     Games.Run.Hydra
-    Games.Terminal
-
     Games.Server.Hydra
     Games.Server.IO
+    Games.Terminal
+
   build-depends:
-                  QuickCheck
-                , aeson
-                , ansi-terminal
-                , base
-                , base16-bytestring
-                , chess-core
-                , chess-client
-                , bytestring
-                , cardano-binary
-                , cborg
-                , containers
-                , cryptonite
-                , directory
-                , filepath
-                , generic-random
-                , http-client
-                , http-conduit
-                , http-types
-                , io-classes
-                , megaparsec
-                , memory
-                , mtl
-                , mtl
-                , optparse-applicative
-                , process
-                , random
-                , serialise
-                , scientific
-                , tar
-                , text
-                , unix
-                , websockets
-                , zip-archive
-                , zlib
+    , aeson
+    , ansi-terminal
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-binary
+    , cborg
+    , chess-client
+    , chess-core
+    , containers
+    , cryptonite
+    , directory
+    , filepath
+    , generic-random
+    , http-client
+    , http-conduit
+    , http-types
+    , io-classes
+    , megaparsec
+    , memory
+    , mtl
+    , optparse-applicative
+    , process
+    , QuickCheck
+    , random
+    , scientific
+    , serialise
+    , tar
+    , text
+    , unix
+    , websockets
+    , zip-archive
+    , zlib
 
 executable hychess
   ghc-options:      -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
@@ -94,30 +92,44 @@ executable hychess
   hs-source-dirs:   app
   default-language: Haskell2010
 
+executable chess-admin
+  main-is:          chess-admin.hs
+
+  -- Modules included in this executable, other than Main.
+  -- other-modules:
+
+  -- LANGUAGE extensions used by modules in this package.
+  -- other-extensions:
+  build-depends:
+    , base
+    , chess-core
+    , hydra-chess
+
+  hs-source-dirs:   app
+  default-language: Haskell2010
+
 test-suite tests
   ghc-options:        -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
   hs-source-dirs:     test
-  other-modules:
-    Games.Server.HydraSpec
-
+  other-modules:      Games.Server.HydraSpec
   main-is:            Spec.hs
   type:               exitcode-stdio-1.0
   build-depends:
     , aeson
     , base
+    , bytestring
     , chess-client
     , chess-core
-    , hydra-chess
-    , bytestring
     , containers
     , hspec
     , hspec-core
     , hspec-golden-aeson
     , http-types
+    , hydra-chess
     , io-classes
     , io-sim
     , mtl
     , QuickCheck
     , text
 
-  build-tool-depends: hspec-discover:hspec-discover -any
+  build-tool-depends: hspec-discover:hspec-discover

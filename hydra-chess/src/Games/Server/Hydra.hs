@@ -8,7 +8,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -65,6 +64,7 @@ import Data.Foldable (toList)
 import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Data.List (intersperse)
 import qualified Data.List as List
+import Data.Maybe (fromMaybe)
 import Data.Scientific (floatingOrInteger)
 import Data.Sequence (Seq ((:|>)), (|>))
 import qualified Data.Sequence as Seq
@@ -72,6 +72,7 @@ import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Game.Chess (Chess, ChessEnd (..), GamePlay (..))
 import Game.Client.Console (Coins, SimpleUTxO (..), parseQueryUTxO)
@@ -89,9 +90,8 @@ import Games.Cardano.Network (Network, networkMagicArgs)
 import Games.Logging (Logger, logWith)
 import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
-  HydraLog (BuildingTransaction, CardanoCliOutput, SubmittedTransaction),
+  HydraLog (..),
   KeyRole (Game),
-  extractCBORHex,
   findDatumFile,
   findEloScriptFile,
   findGameScriptFile,
@@ -110,10 +110,11 @@ import Network.HTTP.Types (statusCode)
 import Network.WebSockets (Connection, defaultConnectionOptions)
 import qualified Network.WebSockets as WS
 import Numeric.Natural (Natural)
+import System.Exit (ExitCode (ExitFailure))
 import System.FilePath ((<.>))
 import System.IO (hClose)
 import System.Posix (mkstemp)
-import System.Process (callProcess, readProcess)
+import System.Process (callProcess, readProcessWithExitCode)
 import Prelude hiding (seq)
 
 -- | The type of backend provide by Hydra
@@ -247,7 +248,7 @@ withHydraServer logger network me host k = do
             ReadyToFanout headId ->
               atomically (modifyTVar' events (|> HeadClosing headId))
             GetUTxOResponse{utxo} ->
-              atomically (modifyTVar' events (|> OtherMessage (JsonContent utxo)))
+              atomically (modifyTVar' events (|> CollectUTxO (JsonContent utxo)))
             RolledBack{} -> pure ()
             TxValid{} -> pure ()
             TxInvalid{validationError} ->
@@ -259,6 +260,10 @@ withHydraServer logger network me host k = do
               logWith logger $ ConnectedTo peer
             PeerDisconnected{peer} ->
               logWith logger $ DisconnectedFrom peer
+            InvalidInput{reason, input} ->
+              atomically (modifyTVar' events (|> OtherMessage (JsonContent $ toJSON output)))
+  -- TODO
+  -- handle NotEnoughFuel message from hydra
 
   handleGameState :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> Value -> Bool -> IO ()
   handleGameState events cnx headId utxo isReplaying = do
@@ -270,19 +275,19 @@ withHydraServer logger network me host k = do
       Left err -> pure ()
       Right st@ChessGame{game} ->
         if
-            | game == Chess.initialGame ->
-                atomically $ modifyTVar' events (|> GameStarted headId st [])
-            | Chess.checkState game == CheckMate White -> do
-                atomically $ modifyTVar' events (|> GameEnded headId st BlackWins)
-                -- FIXME this is wrong and a consequence of the incorrect structure of the
-                -- application. The thread receiving messages should transform and transfer them
-                -- as fast as possible but not do complicated tx handling
-                void $ async $ endGame events cnx utxo
-            | Chess.checkState game == CheckMate Black -> do
-                atomically $ modifyTVar' events (|> GameEnded headId st WhiteWins)
-                void $ async $ endGame events cnx utxo
-            | otherwise ->
-                atomically $ modifyTVar' events (|> GameChanged headId st [])
+          | game == Chess.initialGame ->
+              atomically $ modifyTVar' events (|> GameStarted headId st [])
+          | Chess.checkState game == CheckMate White -> do
+              atomically $ modifyTVar' events (|> GameEnded headId st BlackWins)
+              -- FIXME this is wrong and a consequence of the incorrect structure of the
+              -- application. The thread receiving messages should transform and transfer them
+              -- as fast as possible but not do complicated tx handling
+              void $ async $ endGame events cnx utxo
+          | Chess.checkState game == CheckMate Black -> do
+              atomically $ modifyTVar' events (|> GameEnded headId st WhiteWins)
+              void $ async $ endGame events cnx utxo
+          | otherwise ->
+              atomically $ modifyTVar' events (|> GameChanged headId st [])
 
   splitGameUTxO :: Connection -> Value -> IO ()
   splitGameUTxO cnx utxo = do
@@ -321,7 +326,8 @@ withHydraServer logger network me host k = do
     protocolParametersFile <- findProtocolParametersFile network
     txRawFile <- mkTempFile
     let fullArgs =
-          [ "transaction"
+          [ "conway"
+          , "transaction"
           , "build-raw"
           ]
             <> args
@@ -334,6 +340,7 @@ withHydraServer logger network me host k = do
                , "--out-file"
                , txRawFile
                ]
+        signedFile = txRawFile <.> "signed"
 
     logWith logger $ BuildingTransaction txRawFile fullArgs
 
@@ -341,22 +348,29 @@ withHydraServer logger network me host k = do
 
     callProcess
       cardanoCliExe
-      $ [ "transaction"
+      $ [ "conway"
+        , "transaction"
         , "sign"
         , "--tx-file"
         , txRawFile
         , "--signing-key-file"
         , sk
         , "--out-file"
-        , txRawFile <.> "signed"
+        , signedFile
         ]
         <> networkMagicArgs network
 
-    cborHex <- extractCBORHex $ txRawFile <.> "signed"
+    envelope <- eitherDecode' @Value <$> LBS.readFile signedFile
 
-    WS.sendTextData cnx (encode $ NewTx cborHex)
+    case envelope of
+      Left err -> do
+        -- FIXME: what to do here?
+        logWith logger $ ErrorSubmittingTransaction err
+        throwIO $ ServerException ("Error submitting transaction: " <> pack err)
+      Right tx -> do
+        WS.sendTextData cnx (encode $ NewTx tx)
 
-    logWith logger $ SubmittedTransaction (txRawFile <.> "signed")
+        logWith logger $ SubmittedTransaction signedFile
 
   findGameToken :: Value -> IO (Maybe String)
   findGameToken utxo = do
@@ -429,7 +443,8 @@ withHydraServer logger network me host k = do
 
       callProcess
         cardanoCliExe
-        $ [ "transaction"
+        $ [ "conway"
+          , "transaction"
           , "sign"
           , "--tx-file"
           , txFileRaw
@@ -440,19 +455,26 @@ withHydraServer logger network me host k = do
           ]
           <> networkMagicArgs network
 
-      readProcess
-        cardanoCliExe
-        ( [ "transaction"
-          , "submit"
-          , "--tx-file"
-          , txFileRaw <.> "signed"
-          , "--socket-path"
-          , socketPath
-          ]
-            <> networkMagicArgs network
-        )
-        []
-        >>= logWith logger . CardanoCliOutput cardanoCliExe
+      result <-
+        readProcessWithExitCode
+          cardanoCliExe
+          ( [ "conway"
+            , "transaction"
+            , "submit"
+            , "--tx-file"
+            , txFileRaw <.> "signed"
+            , "--socket-path"
+            , socketPath
+            ]
+              <> networkMagicArgs network
+          )
+          []
+      logWith logger $ CardanoCliResult cardanoCliExe result
+
+      case result of
+        (ExitFailure{}, out, err) ->
+          throwIO $ CommitError $ "Failed to submit transaction, out: " <> out <> ", err: " <> err
+        _ -> pure ()
 
       logWith logger $ SubmittedTransaction (txFileRaw <.> "signed")
 
@@ -709,9 +731,9 @@ withHydraServer logger network me host k = do
 
   findCollateral :: String -> Value -> String
   findCollateral address utxo =
-    maybe (error "Cannot find collateral for " <> address <> " from " <> asString utxo) id $
+    fromMaybe (error $ "Cannot find collateral for " <> address <> " from " <> asString utxo) $
       case utxo of
-        Object kv -> fmap (unpack . Key.toText . fst) $ List.find (findUTxOWithAddress address) (KeyMap.toList kv)
+        Object kv -> (unpack . Key.toText . fst) <$> List.find (findUTxOWithAddress address) (KeyMap.toList kv)
         _ -> Nothing
 
   findGameTokens ::
@@ -772,7 +794,7 @@ withHydraServer logger network me host k = do
       timeout
         10_000_000
         ( waitFor events $ \case
-            OtherMessage (JsonContent txt) -> Just txt
+            CollectUTxO (JsonContent txt) -> Just txt
             _ -> Nothing
         )
         >>= maybe (go (n - 1)) pure
@@ -839,7 +861,7 @@ waitFor events predicate = do
       (_ :|> event) -> maybe retry pure (predicate event)
       _ -> retry
 
-data Request = Init | Close | Fanout | GetUTxO | NewTx Text
+data Request = Init | Close | Fanout | GetUTxO | NewTx Value
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON Request where
@@ -848,10 +870,10 @@ instance ToJSON Request where
     Close -> object ["tag" .= ("Close" :: Text)]
     Fanout -> object ["tag" .= ("Fanout" :: Text)]
     GetUTxO -> object ["tag" .= ("GetUTxO" :: Text)]
-    NewTx txCBOR ->
+    NewTx txEnvelope ->
       object
         [ "tag" .= ("NewTx" :: Text)
-        , "transaction" .= txCBOR
+        , "transaction" .= txEnvelope
         ]
 
 instance FromJSON Request where
@@ -889,10 +911,11 @@ data Output
   | SnapshotConfirmed {headId :: HeadId, snapshot :: Snapshot, signatures :: Value}
   | PeerConnected {peer :: Text}
   | PeerDisconnected {peer :: Text}
+  | InvalidInput {reason :: Text, input :: Text}
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
-data Snapshot = Snapshot {headId :: HeadId, utxo :: Value, confirmed :: [Text]}
+data Snapshot = Snapshot {headId :: HeadId, utxo :: Value, confirmed :: [Value], number :: Word64}
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
@@ -901,7 +924,8 @@ instance FromJSON Snapshot where
     Snapshot
       <$> (obj .: "headId")
       <*> (obj .: "utxo")
-      <*> (obj .: "confirmedTransactions")
+      <*> (obj .: "confirmed")
+      <*> (obj .: "number")
 
 instance FromJSON Response where
   parseJSON v = flip (withObject "Response") v $ \o -> do

@@ -5,12 +5,12 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Game.Server where
 
@@ -132,6 +132,7 @@ data FromChain g c
   | HeadClosing {headId :: HeadId}
   | HeadClosed {headId :: HeadId}
   | OtherMessage {content :: Content}
+  | CollectUTxO {utxo :: Content}
   deriving (Generic)
 
 deriving instance (Game g, IsChain c) => Show (FromChain g c)

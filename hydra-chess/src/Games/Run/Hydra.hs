@@ -87,6 +87,7 @@ import System.Directory (
   setOwnerExecutable,
   setPermissions,
  )
+import System.Exit (ExitCode (..))
 import System.FilePath ((<.>), (</>))
 import System.IO (hClose)
 import qualified System.Info as System
@@ -108,7 +109,7 @@ data HydraNode = HydraNode
   deriving (Show)
 
 version :: String
-version = "0.19.0"
+version = "0.20.0"
 
 data HydraLog
   = HydraNodeStarting
@@ -119,7 +120,9 @@ data HydraLog
   | QueryingUtxo {address :: String}
   | BuildingTransaction {file :: FilePath, args :: [String]}
   | CardanoCliOutput {file :: FilePath, output :: String}
+  | CardanoCliResult {file :: FilePath, result :: (ExitCode, String, String)}
   | SubmittedTransaction {file :: FilePath}
+  | ErrorSubmittingTransaction {reason :: String}
   | UsingPeersFile {file :: FilePath}
   | NoPeersDefined
   | CheckingHydraFunds {address :: String}
@@ -128,6 +131,17 @@ data HydraLog
   | HydraNodeStarted {cmdspec :: CmdSpec}
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
+
+instance ToJSON ExitCode where
+  toJSON = \case
+    ExitSuccess -> Number 0
+    ExitFailure n -> Number $ fromIntegral n
+
+instance FromJSON ExitCode where
+  parseJSON = \case
+    Number 0 -> pure ExitSuccess
+    Number n -> pure $ ExitFailure $ floor n
+    other -> fail $ "Cannot parse ExitCode, expected number, got " <> show other
 
 instance ToJSON CmdSpec where
   toJSON = \case
@@ -172,7 +186,7 @@ findHydraScriptsTxId = \case
   -- TODO: use https://raw.githubusercontent.com/input-output-hk/hydra/0.14.0/networks.json
   -- FIXME: This is actually tied to the version
   Preview -> pure "0fd2468a66a0b1cb944cff9512ecfa25cdd2799cb48b07210c449a5ecace267d"
-  Preprod -> pure "03f8deb122fbbd98af8eb58ef56feda37728ec957d39586b78198a0cf624412a"
+  Preprod -> pure "7d2793a5b609d49876707c0f9fadeab1df77fe3cd964bd0c0f8ebe1f6ffad39f"
   Mainnet -> pure "ab1d9f8cca896bca06b70df74860deecf20774e03d8562aecaed37525f6ebead"
 
 hydraNodeProcess :: Logger -> Network -> FilePath -> FilePath -> IO (PublicKey, CreateProcess)
@@ -199,34 +213,33 @@ hydraNodeProcess logger network executableFile nodeSocket = do
     apiPort :: Int = 34567
     monitoringPort :: Int = 6001
     args =
-      ( [ "--node-id"
-        , nodeId
-        , "--api-host"
-        , "127.0.0.1"
-        , "--api-port"
-        , show apiPort
-        , "--host"
-        , "0.0.0.0"
-        , "--port"
-        , show hydraPort
-        , "--monitoring-port"
-        , show monitoringPort
-        , "--persistence-dir"
-        , hydraPersistenceDir
-        , "--hydra-signing-key"
-        , hydraSkFile
-        , "--cardano-signing-key"
-        , cardanoSkFile
-        , "--ledger-protocol-parameters"
-        , protocolParametersFile
-        , "--hydra-scripts-tx-id"
-        , hydraScriptsTxId
-        , "--node-socket"
-        , nodeSocket
-        ]
-          <> peerArguments
-          <> networkMagicArgs network
-      )
+      [ "--node-id"
+      , nodeId
+      , "--api-host"
+      , "127.0.0.1"
+      , "--api-port"
+      , show apiPort
+      , "--host"
+      , "0.0.0.0"
+      , "--port"
+      , show hydraPort
+      , "--monitoring-port"
+      , show monitoringPort
+      , "--persistence-dir"
+      , hydraPersistenceDir
+      , "--hydra-signing-key"
+      , hydraSkFile
+      , "--cardano-signing-key"
+      , cardanoSkFile
+      , "--ledger-protocol-parameters"
+      , protocolParametersFile
+      , "--hydra-scripts-tx-id"
+      , hydraScriptsTxId
+      , "--node-socket"
+      , nodeSocket
+      ]
+        <> peerArguments
+        <> networkMagicArgs network
   pure (me, proc executableFile args)
 
 checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO ()

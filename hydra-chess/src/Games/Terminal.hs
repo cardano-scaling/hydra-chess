@@ -133,7 +133,7 @@ notifyProgress fn a = do
             [SetColor Foreground Dull Red]
           hPutStr stdout "\x25b6"
           setSGR [Reset]
-          hPutStr stdout $ "Send at least 10 ADAs to " <> address <> " on " <> network
+          hPutStr stdout $ "Send at least 10 ADAs to " <> address <> " on " <> network <> ", rechecking in 60s"
         Just "CheckedHydraFunds" -> do
           hCursorBackward stdout 1000
           hClearFromCursorToLineEnd stdout

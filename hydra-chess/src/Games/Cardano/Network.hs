@@ -25,7 +25,7 @@ instance FromJSON Network where
 
 cardanoNodeVersion :: Network -> String
 cardanoNodeVersion Preview = "9.1.1"
-cardanoNodeVersion Preprod = "9.1.1"
+cardanoNodeVersion Preprod = "10.1.3"
 cardanoNodeVersion Mainnet = "9.1.1"
 
 networkDir :: Network -> FilePath
