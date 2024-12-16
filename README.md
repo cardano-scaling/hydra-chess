@@ -15,12 +15,16 @@ This project started with [Black Jack](https://en.wikipedia.org/wiki/Blackjack) 
 * [x] Basic [Plutus](./black-jack-core/src/Chess/Contract.hs) smart contract
 * [x] Create Cardano transactions using only [cardano-cli](https://github.com/IntersectMBO/cardano-cli)
 * [x] Advanced smart contract: Check play is valid for any given game state
+  * [x] handle castling
+  * [ ] handle quitting a game
+  * [ ] handle proposing/accepting a draw
 * [ ] ~~Proper "randomness"~~
 * [x] Startup & configure Hydra server in the background
 * [x] Startup & configure cardano-node in the background
 * [ ] Use mithril to bootstrap Cardano-node
 * [x] Support for 2-players
-* [x] User manual
+* [x] Basic user manual
+* [ ] Provide docker image
 * [ ] Provide pre-compiled binaries
 * [ ] Web UI
 

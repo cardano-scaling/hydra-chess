@@ -1067,7 +1067,7 @@ extractTokens kv = do
 
 stringifyValue :: (Integer, GameTokens) -> String
 stringifyValue (adas, tokens) =
-  show adas <> " lovelace + " <> concat (intersperse " + " (map stringify tokens))
+  show adas <> " lovelace + " <> List.intercalate " + " (map stringify tokens)
  where
   stringify (pid, tok, val) = show val <> " " <> pid <.> tok
 
