@@ -194,10 +194,12 @@ hydraNodeProcess logger network executableFile nodeSocket = do
   (me, hydraSkFile) <- findHydraSigningKey logger network
 
   (cardanoSkFile, cardanoVkFile) <- findKeys Fuel network
-  checkFundsAreAvailable logger network cardanoSkFile cardanoVkFile
 
-  (gameSkFile, gameVkFile) <- findKeys Game network
-  checkGameTokenIsAvailable logger network gameSkFile gameVkFile
+  -- FIXME: do we want to check funbds and game token here?
+  -- It could be the case hydra-chess is reconnecting to an existing game
+  -- in which case we don't want to recreate the game token as it's already in use
+  -- inside a head
+  checkFundsAreAvailable logger network cardanoSkFile cardanoVkFile
 
   protocolParametersFile <- findProtocolParametersFile network
   hydraPersistenceDir <- findHydraPersistenceDir network
@@ -242,14 +244,14 @@ hydraNodeProcess logger network executableFile nodeSocket = do
         <> networkMagicArgs network
   pure (me, proc executableFile args)
 
-checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO ()
+checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO String
 checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
   pkh <- findPubKeyHash gameVkFile
   let token = "1 " <> Token.validatorHashHex <.> pkh
   gameAddress <- getVerificationKeyAddress gameVkFile network
   logWith logger $ CheckingGameToken pkh gameAddress
   hasToken logger network token gameAddress >>= \case
-    Just{} -> pure ()
+    Just tok -> pure tok
     Nothing -> do
       -- FIXME: it could be the case the token is already consumed in an ongoing game
       -- how to detect that situation? probably by wrapping the hydra server in such
@@ -264,7 +266,12 @@ checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
     logWith logger (WaitForTokenRegistration token)
     threadDelay 10_000_000
     hasToken logger network token gameAddress
-      >>= maybe (waitForToken token gameAddress) (const $ logWith logger $ GameTokenRegistered gameAddress network)
+      >>= maybe
+        (waitForToken token gameAddress)
+        ( \tok -> do
+            logWith logger $ GameTokenRegistered gameAddress network
+            pure tok
+        )
 
 hasToken :: Logger -> Network -> String -> String -> IO (Maybe String)
 hasToken logger network token gameAddress = do

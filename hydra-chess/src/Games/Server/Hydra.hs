@@ -92,6 +92,7 @@ import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
   HydraLog (..),
   KeyRole (Game),
+  checkGameTokenIsAvailable,
   findDatumFile,
   findEloScriptFile,
   findGameScriptFile,
@@ -100,7 +101,6 @@ import Games.Run.Hydra (
   findPubKeyHash,
   getScriptAddress,
   getVerificationKeyAddress,
-  hasToken,
   makeEloScriptFile,
   mkTempFile,
  )
@@ -217,7 +217,8 @@ withHydraServer logger network me host k = do
           Right (Response{output}) -> case output of
             HeadIsInitializing headId parties -> do
               atomically (modifyTVar' events (|> HeadCreated headId parties))
-              sendCommit cnx events host 100 headId
+              isReplaying <- readTVarIO replaying
+              unless isReplaying $ sendCommit cnx events host 100 headId
             HeadIsAborted headId _ ->
               atomically (modifyTVar' events (|> HeadClosed headId))
             HeadIsFinalized headId _ ->
@@ -243,6 +244,8 @@ withHydraServer logger network me host k = do
                         )
                   )
             Greetings{} ->
+              -- the hydra server is ready to receive commands so this
+              -- means we have stopped replay
               atomically $ writeTVar replaying False
             HeadIsClosed{} -> pure ()
             ReadyToFanout headId ->
@@ -282,10 +285,10 @@ withHydraServer logger network me host k = do
               -- FIXME this is wrong and a consequence of the incorrect structure of the
               -- application. The thread receiving messages should transform and transfer them
               -- as fast as possible but not do complicated tx handling
-              void $ async $ endGame events cnx utxo
+              unless isReplaying $ void $ async $ endGame events cnx utxo
           | Chess.checkState game == CheckMate Black -> do
               atomically $ modifyTVar' events (|> GameEnded headId st WhiteWins)
-              void $ async $ endGame events cnx utxo
+              unless isReplaying $ void $ async $ endGame events cnx utxo
           | otherwise ->
               atomically $ modifyTVar' events (|> GameChanged headId st [])
 
@@ -404,27 +407,22 @@ withHydraServer logger network me host k = do
       socketPath <- findSocketPath network
 
       -- find game token UTxO
+      (gameSkFile, gameVkFile) <- findKeys Game network
       gameAddress <- getVerificationKeyAddress vkFile network
-      token <- (("1 " <> Token.validatorHashHex) <.>) <$> findPubKeyHash vkFile
 
       gameToken <-
-        hasToken logger network token gameAddress >>= \case
-          Just tok ->
-            either
-              (throwIO . CommitError . unpack)
-              pure
-              (parseQueryUTxO . pack $ tok)
-          Nothing ->
-            throwIO $
-              CommitError $
-                "Failed to retrieve game token to commit for:\n" <> token
+        checkGameTokenIsAvailable logger network gameSkFile gameVkFile
+          >>= \tok ->
+            case parseQueryUTxO $ pack tok of
+              Left err -> throwIO $ CommitError $ unpack err
+              Right utxo -> pure utxo
 
       let utxo = mkFullUTxO (Text.pack gameAddress) Nothing gameToken
 
       -- commit is now external, so we need to handle query to the server, signature and then
       -- submission via the cardano-cli
       request <- parseRequest ("POST http://" <> unpack host <> ":" <> show port <> "/commit")
-      response <- httpLBS $ setRequestBodyJSON (utxo) request
+      response <- httpLBS $ setRequestBodyJSON utxo request
 
       txFileRaw <-
         case statusCode (responseStatus response) of
@@ -439,7 +437,7 @@ withHydraServer logger network me host k = do
                 "Commit transaction failed with error "
                   <> show other
                   <> " for UTxO "
-                  <> (asString utxo)
+                  <> asString utxo
 
       callProcess
         cardanoCliExe
