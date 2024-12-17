@@ -54,6 +54,7 @@ library
     Chess.Contract
     Chess.Data
     Chess.ELO
+    Chess.Elo.Score
     Chess.Game
     Chess.GameState
     Chess.Generators
@@ -105,6 +106,7 @@ test-suite tests
   hs-source-dirs:     test
   other-modules:
     Chess.DataSpec
+    Chess.Elo.ScoreSpec
     Chess.Game.Castling
     Chess.Game.Utils
     Chess.GameSpec
