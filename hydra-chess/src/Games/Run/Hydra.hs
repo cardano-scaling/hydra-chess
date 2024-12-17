@@ -53,6 +53,7 @@ import Data.ByteArray (convert)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Short as SBS
 import Data.Either (rights)
 import Data.Function (on)
 import qualified Data.List as List
@@ -194,11 +195,6 @@ hydraNodeProcess logger network executableFile nodeSocket = do
   (me, hydraSkFile) <- findHydraSigningKey logger network
 
   (cardanoSkFile, cardanoVkFile) <- findKeys Fuel network
-
-  -- FIXME: do we want to check funbds and game token here?
-  -- It could be the case hydra-chess is reconnecting to an existing game
-  -- in which case we don't want to recreate the game token as it's already in use
-  -- inside a head
   checkFundsAreAvailable logger network cardanoSkFile cardanoVkFile
 
   protocolParametersFile <- findProtocolParametersFile network
@@ -461,6 +457,13 @@ findGameScriptFile network = do
   let eloScriptFile = configDir </> "game-script.plutus"
   BS.writeFile eloScriptFile (validatorToBytes Contract.validatorScript)
   pure eloScriptFile
+
+makeGameFlatFile :: Network -> IO FilePath
+makeGameFlatFile network = do
+  configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
+  let gameFlatFile = configDir </> "game-script.flat"
+  BS.writeFile gameFlatFile (SBS.fromShort Contract.validatorScript)
+  pure gameFlatFile
 
 mkTxIn :: SimpleUTxO -> String
 mkTxIn =

@@ -27,7 +27,7 @@ import PlutusTx (CompiledCode, compile, liftCode, unsafeApplyCode)
 
 -- FIXME: check script can only be spent by `PubKeyHash`
 validator :: PubKeyHash -> BuiltinData -> BuiltinData -> BuiltinData -> Bool
-validator _pkh _ _ _ = True
+validator _pkh _datum _redeemer _context = True
 {-# INLINEABLE validator #-}
 
 compiledValidator :: CompiledCode (PubKeyHash -> ValidatorType)
@@ -36,9 +36,9 @@ compiledValidator =
 
 validatorScript :: PubKeyHash -> SerialisedScript
 validatorScript pkh =
-  serialiseCompiledCode $
-    compiledValidator
-      `unsafeApplyCode` PlutusTx.liftCode plcVersion100 pkh
+  serialiseCompiledCode
+    $ compiledValidator
+    `unsafeApplyCode` PlutusTx.liftCode plcVersion100 pkh
 
 validatorHash :: PubKeyHash -> ScriptHash
 validatorHash = scriptValidatorHash . validatorScript

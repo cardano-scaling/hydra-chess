@@ -318,7 +318,9 @@ withHydraServer logger network me host k = do
           , "--tx-out"
           , eloScriptAddress <> "+ 2000000 lovelace + " <> token
           , "--tx-out-inline-datum-value"
-          , "1000" -- FIXME: should be some ELO rating, but where does it come from?
+          , "1000"
+          -- FIXME: should be some ELO rating, but where does it come from?
+          -- comes from the datum of the token txout?
           ]
 
     submitNewTx cnx args sk
