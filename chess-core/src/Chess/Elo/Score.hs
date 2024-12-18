@@ -15,8 +15,7 @@ data Result = AWin | BWin | Draw
 -- and third are numberator and denominator of the probability of winning.
 --
 -- To find the probability given a difference `d`, look up the first element
--- in this list such that the accumulated number is greater than `d`, and
--- return the probability as a Rational.
+-- in this list greater than `d`, and return the probability as a Rational.
 probaWin :: [(Integer, Integer, Integer)]
 probaWin =
   [ (-382, 9, 100)

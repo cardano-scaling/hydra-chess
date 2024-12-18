@@ -19,20 +19,22 @@ module Chess.ELO where
 
 import PlutusTx.Prelude
 
-import Chess.Plutus (ValidatorType, scriptValidatorHash, validatorToBytes)
+import Chess.Plutus (ValidatorType, scriptValidatorHash, validatorToBytes, wrapValidator)
 import Data.ByteString (ByteString)
 import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V2 (PubKeyHash, ScriptHash, SerialisedScript, serialiseCompiledCode)
 import PlutusTx (CompiledCode, compile, liftCode, unsafeApplyCode)
 
 -- FIXME: check script can only be spent by `PubKeyHash`
-validator :: PubKeyHash -> BuiltinData -> BuiltinData -> BuiltinData -> Bool
-validator _pkh _datum _redeemer _context = True
+validator :: PubKeyHash -> Integer -> BuiltinData -> BuiltinData -> Bool
+validator _pkh _eloScore _redeemer _context = True
 {-# INLINEABLE validator #-}
 
 compiledValidator :: CompiledCode (PubKeyHash -> ValidatorType)
 compiledValidator =
-  $$(compile [||(\pkh d r c -> check $ validator pkh d r c)||])
+  $$(compile [||wrap . validator||])
+ where
+  wrap = wrapValidator @Integer @BuiltinData
 
 validatorScript :: PubKeyHash -> SerialisedScript
 validatorScript pkh =

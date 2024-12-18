@@ -16,15 +16,17 @@ import Chess.Plutus (pubKeyHashFromHex, pubKeyHashToHex)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import GHC.Generics (Generic)
 import PlutusLedgerApi.V2 (PubKeyHash)
-import qualified PlutusTx
+import PlutusPrelude (first)
+import PlutusTx qualified
+import PlutusTx.Prelude (Integer)
 import Test.QuickCheck (Arbitrary (..), frequency)
 import Prelude (Bool (..), fmap, pure, ($), (<$>))
-import qualified Prelude as Haskell
+import Prelude qualified as Haskell
 
 -- * Toplevel state/transition
 data ChessGame = ChessGame
-  { players :: [PubKeyHash]
-  -- ^ Players identified by their pkh.
+  { players :: [(PubKeyHash, Integer)]
+  -- ^ Players with their Elo score identified by their pkh.
   -- Their might be one or 2 players at start and by convention the one whose
   -- pkh is closest to the starting game's hash value (??) is `White`, the other
   -- being `Black`.
@@ -39,13 +41,13 @@ instance ToJSON ChessGame where
   toJSON ChessGame{players, game} =
     object
       [ "game" .= game
-      , "players" .= (pubKeyHashToHex <$> players)
+      , "players" .= (first pubKeyHashToHex <$> players)
       ]
 
 instance FromJSON ChessGame where
   parseJSON = withObject "ChessGame" $ \obj -> do
     game <- obj .: "game"
-    players <- fmap pubKeyHashFromHex <$> obj .: "players"
+    players <- fmap (first pubKeyHashFromHex) <$> obj .: "players"
     pure ChessGame{game, players}
 
 data ChessPlay

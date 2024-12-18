@@ -79,7 +79,10 @@ possibleMovesFor side game@Game{pieces} =
   elements $ concatMap ((`possibleMoves` game{curSide = side}) . pos) (filter (`hasSide` side) pieces)
 
 instance Arbitrary ChessGame where
-  arbitrary = ChessGame <$> listOf genPubKeyHash <*> arbitrary
+  arbitrary = ChessGame <$> listOf genPlayer <*> arbitrary
+
+genPlayer :: Gen (PubKeyHash, Integer)
+genPlayer = (,) <$> genPubKeyHash <*> choose (1000, 3000)
 
 genPubKeyHash :: Gen PubKeyHash
 genPubKeyHash = PubKeyHash . toBuiltin . BS.pack <$> vectorOf 28 arbitrary

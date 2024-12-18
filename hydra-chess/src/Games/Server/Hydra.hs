@@ -60,6 +60,7 @@ import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
+import Data.Either (fromRight)
 import Data.Foldable (toList)
 import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Data.List (intersperse)
@@ -74,6 +75,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Word (Word64)
 import GHC.Generics (Generic)
+import GHC.Stack (HasCallStack)
 import Game.Chess (Chess, ChessEnd (..), GamePlay (..))
 import Game.Client.Console (Coins, SimpleUTxO (..), parseQueryUTxO)
 import Game.Server (
@@ -156,19 +158,20 @@ instance ToJSON CommitError where
   toJSON (CommitError msg) =
     object ["tag" .= ("CommitError" :: Text), "error" .= msg]
 
-type GameTokens = [(String, String, Integer)]
+type GameToken =
+  ( String -- txin
+  , String -- pkh
+  , Integer -- lovelace
+  , Integer -- elo
+  )
+
+type GameTokens = [GameToken]
 
 data InvalidMove
   = InvalidMove Chess.IllegalMove
   | NoSingleOwnGameToken GameTokens GameTokens
   | UTxOError Text
   deriving (Eq, Show, Exception)
-
-type GameToken =
-  ( String -- txin
-  , String -- pkh
-  , Integer -- lovelace
-  )
 
 data GameLog
   = GameServerStarting
@@ -511,7 +514,7 @@ withHydraServer logger network me host k = do
     let collateral = findCollateral gameAddress utxo
         pid = Token.validatorHashHex
         gameTokens = findGameTokens pid utxo
-        lovelace = sum $ (\(_, _, l) -> l) <$> gameTokens
+        lovelace = sum $ (\(_, _, l, _) -> l) <$> gameTokens
 
     gameInputs <- concat <$> mapM makeGameInput gameTokens
 
@@ -521,7 +524,7 @@ withHydraServer logger network me host k = do
 
     let initGame =
           ChessGame
-            { players = fmap (\(_, pkh, _) -> pubKeyHashFromHex (pack pkh)) gameTokens
+            { players = fmap (\(_, pkh, _, elo) -> (pubKeyHashFromHex (pack pkh), elo)) gameTokens
             , game = Chess.initialGame
             }
 
@@ -658,7 +661,7 @@ withHydraServer logger network me host k = do
           throwIO $ UTxOError $ "Cannot extract game value: " <> err
         Right v -> pure v
 
-      let (own, their) = List.partition (\(_, pk, _) -> pk == pkh) tokens
+      let (own, their) = List.partition (\(_, pk, _, _) -> pk == pkh) tokens
 
       logWith logger $ FoundGameTokens own their
 
@@ -726,8 +729,8 @@ withHydraServer logger network me host k = do
 
       submitNewTx cnx args skFile
 
-  makeValue :: String -> (String, String, Integer) -> String
-  makeValue pid (_, pkh, _) = "1 " <> pid <.> pkh
+  makeValue :: String -> GameToken -> String
+  makeValue pid (_, pkh, _, _) = "1 " <> pid <.> pkh
 
   findCollateral :: String -> Value -> String
   findCollateral address utxo =
@@ -745,8 +748,8 @@ withHydraServer logger network me host k = do
       Object kv -> foldMap (findUTxOWithPolicyId pid) (KeyMap.toList kv)
       _ -> []
 
-  makeGameInput :: (String, String, Integer) -> IO [String]
-  makeGameInput (txin, pkh, _) = do
+  makeGameInput :: GameToken -> IO [String]
+  makeGameInput (txin, pkh, _, _) = do
     eloScriptFile <- makeEloScriptFile pkh network
 
     pure $
@@ -991,10 +994,20 @@ findUTxOWithPolicyId pid (txin, txout) =
       case filter ((== fromString "value") . fst) $ KeyMap.toList kv of
         [(_, Object val)] ->
           case filter ((== fromString pid) . fst) $ KeyMap.toList val of
-            [(_, Object toks)] -> fmap (\pkh -> (unpack $ Key.toText $ txin, unpack $ Key.toText $ pkh, 2000000)) $ KeyMap.keys toks
+            [(_, Object toks)] ->
+              (\pkh -> (asText txin, asText pkh, 2000000, extractEloFromDatum kv))
+                <$> KeyMap.keys toks
             _ -> []
         _ -> []
     _ -> []
+ where
+  asText = unpack . Key.toText
+
+extractEloFromDatum :: Aeson.Object -> Integer
+extractEloFromDatum kv =
+  case KeyMap.lookup (fromString "inlineDatum") kv of
+    Just (Number n) -> fromRight 0 $ floatingOrInteger @Double n
+    _ -> 0
 
 findUTxOWithValue :: String -> String -> (KeyMap.Key, Value) -> Maybe String
 findUTxOWithValue pid pkh (txin, txout) =
@@ -1017,7 +1030,7 @@ hasValueFor pid pkh kv =
         _ -> False
     _ -> False
 
-extractGameState :: String -> Value -> Either Text ChessGame
+extractGameState :: (HasCallStack) => String -> Value -> Either Text ChessGame
 extractGameState address utxo =
   case utxo of
     Object kv ->
@@ -1040,7 +1053,7 @@ extractValue = \case
   Object kv ->
     case kv KeyMap.!? fromString "value" of
       Just (Object v) -> extractTokens v
-      _ -> Left "No key 'inlineDatum'"
+      _ -> Left "No key 'value'"
   _ -> Left "Not an object"
 
 extractTokens :: Aeson.Object -> Either Text (Integer, GameTokens)
@@ -1064,14 +1077,14 @@ extractTokens kv = do
   getToken pid (tok, Number val) =
     case floatingOrInteger @Double val of
       Left _ -> []
-      Right i -> [(unpack $ Key.toText pid, unpack $ Key.toText tok, i)]
+      Right i -> [(unpack $ Key.toText pid, unpack $ Key.toText tok, i, 0)] -- We don't know the datum here
   getToken _ _ = []
 
 stringifyValue :: (Integer, GameTokens) -> String
 stringifyValue (adas, tokens) =
   show adas <> " lovelace + " <> List.intercalate " + " (map stringify tokens)
  where
-  stringify (pid, tok, val) = show val <> " " <> pid <.> tok
+  stringify (pid, tok, val, _) = show val <> " " <> pid <.> tok
 
 findGameState :: Value -> Either Text ChessGame
 findGameState txout =

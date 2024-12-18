@@ -29,7 +29,7 @@ import PlutusLedgerApi.V2 (
  )
 import PlutusLedgerApi.V2.Contexts (findDatumHash, getContinuingOutputs)
 import PlutusTx (CompiledCode)
-import qualified PlutusTx
+import PlutusTx qualified
 
 validator :: ChessGame -> ChessPlay -> ScriptContext -> Bool
 validator chess play scriptContext =
@@ -53,10 +53,11 @@ checkMove move chess@ChessGame{players, game} scriptContext@ScriptContext{script
   checkPlayerTurn side =
     case txInfoSignatories txInfo of
       [signer] ->
-        case findIndex (== signer) players of
+        case findIndex (\(pkh, _) -> pkh == signer) players of
           Just idx ->
-            traceIfFalse "Wrong side to play" $
-              (idx == 0 && side == White) || (idx == 1 && side == Black)
+            traceIfFalse "Wrong side to play"
+              $ (idx == 0 && side == White)
+              || (idx == 1 && side == Black)
           Nothing -> traceError "Wrong signer"
       [] ->
         traceError "No signers"
