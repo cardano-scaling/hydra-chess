@@ -22,7 +22,7 @@ import Chess.Data (fromJSONDatum)
 import Chess.Game (Check (..), Side (..))
 import qualified Chess.Game as Chess
 import Chess.GameState (ChessGame (..), ChessPlay (..))
-import Chess.Plutus (pubKeyHashFromHex)
+import Chess.Plutus (pubKeyHash, pubKeyHashFromHex, pubKeyHashToHex)
 import qualified Chess.Token as Token
 import Control.Concurrent.Class.MonadSTM (
   TVar,
@@ -40,6 +40,8 @@ import Control.Monad.Class.MonadAsync (async, link, withAsync)
 import Control.Monad.Class.MonadThrow (MonadCatch (catch), throwIO, try)
 import Control.Monad.Class.MonadTime (UTCTime)
 import Control.Monad.Class.MonadTimer (threadDelay, timeout)
+import Crypto.Hash (Blake2b_224, hash)
+import Crypto.PubKey.Curve25519 (PublicKey)
 import Data.Aeson (
   FromJSON,
   ToJSON (..),
@@ -57,6 +59,7 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (FromJSON (..), Pair)
 import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor (first)
+import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
@@ -95,6 +98,7 @@ import Games.Run.Hydra (
   HydraLog (..),
   KeyRole (Game),
   checkGameTokenIsAvailable,
+  deserialiseFromEnvelope,
   findDatumFile,
   findEloScriptFile,
   findGameScriptFile,
@@ -103,7 +107,6 @@ import Games.Run.Hydra (
   findPubKeyHash,
   getScriptAddress,
   getVerificationKeyAddress,
-  makeEloScriptFile,
   mkTempFile,
  )
 import Network.HTTP.Client (responseBody, responseStatus)
@@ -310,7 +313,7 @@ withHydraServer logger network me host k = do
     let pid = Token.validatorHashHex
         token = "1 " <> pid <> "." <> pkh
 
-    (_, eloScriptFile) <- findEloScriptFile vk network
+    eloScriptFile <- findEloScriptFile vk network
     eloScriptAddress <- getScriptAddress eloScriptFile network
 
     let args =
@@ -634,6 +637,8 @@ withHydraServer logger network me host k = do
     go = do
       -- retrieve needed tools and keys
       (skFile, vkFile) <- findKeys Game network
+      gameVk <- deserialiseFromEnvelope @PublicKey vkFile
+      let pkh = unpack $ pubKeyHashToHex $ pubKeyHash $ convert $ hash @_ @Blake2b_224 gameVk
       gameAddress <- getVerificationKeyAddress vkFile network
 
       -- find chess game script & address
@@ -641,7 +646,7 @@ withHydraServer logger network me host k = do
       gameScriptAddress <- getScriptAddress gameScriptFile network
 
       -- find ELO script & address
-      (pkh, eloScriptFile) <- findEloScriptFile vkFile network
+      eloScriptFile <- findEloScriptFile vkFile network
       eloScriptAddress <- getScriptAddress eloScriptFile network
 
       -- retrieve current UTxO state
@@ -736,7 +741,7 @@ withHydraServer logger network me host k = do
   findCollateral address utxo =
     fromMaybe (error $ "Cannot find collateral for " <> address <> " from " <> asString utxo) $
       case utxo of
-        Object kv -> (unpack . Key.toText . fst) <$> List.find (findUTxOWithAddress address) (KeyMap.toList kv)
+        Object kv -> unpack . Key.toText . fst <$> List.find (findUTxOWithAddress address) (KeyMap.toList kv)
         _ -> Nothing
 
   findGameTokens ::
@@ -750,7 +755,7 @@ withHydraServer logger network me host k = do
 
   makeGameInput :: GameToken -> IO [String]
   makeGameInput (txin, pkh, _, _) = do
-    eloScriptFile <- makeEloScriptFile pkh network
+    eloScriptFile <- findEloScriptFile pkh network
 
     pure $
       [ "--tx-in"
@@ -1037,7 +1042,7 @@ extractGameState address utxo =
       case List.find (findUTxOWithAddress address) (KeyMap.toList kv) of
         Nothing -> Left $ "No output at address " <> pack address <> " for utxo"
         Just (_, txout) -> findGameState txout
-    _ -> Left $ "Not an object: " <> (decodeUtf8 $ LBS.toStrict $ encode utxo)
+    _ -> Left $ "Not an object: " <> decodeUtf8 (LBS.toStrict $ encode utxo)
 
 extractGameTxIn :: String -> Value -> Either Text (String, (Integer, GameTokens))
 extractGameTxIn address utxo =
@@ -1046,7 +1051,7 @@ extractGameTxIn address utxo =
       case List.find (findUTxOWithAddress address) (KeyMap.toList kv) of
         Nothing -> Left $ "No output at address " <> pack address <> " for utxo"
         Just (txin, txout) -> (unpack $ Key.toText txin,) <$> extractValue txout
-    _ -> Left $ "Not an object: " <> (decodeUtf8 $ LBS.toStrict $ encode utxo)
+    _ -> Left $ "Not an object: " <> decodeUtf8 (LBS.toStrict $ encode utxo)
 
 extractValue :: Value -> Either Text (Integer, GameTokens)
 extractValue = \case

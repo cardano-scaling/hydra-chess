@@ -14,16 +14,17 @@ import PlutusTx.Prelude
 import Cardano.Binary (serialize')
 import Crypto.Hash (Blake2b_224, hash)
 import Data.Aeson (object, (.=))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Base16 as Hex
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString.Base16 qualified as Hex
+import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Short (ShortByteString, fromShort)
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import PlutusLedgerApi.V2 (
+  CurrencySymbol (CurrencySymbol),
   PubKeyHash (..),
   ScriptHash (..),
   SerialisedScript,
@@ -31,8 +32,8 @@ import PlutusLedgerApi.V2 (
   UnsafeFromData,
  )
 import PlutusTx (UnsafeFromData (..))
-import qualified PlutusTx
-import qualified Prelude
+import PlutusTx qualified
+import Prelude qualified
 
 -- | Signature of an untyped validator script.
 type ValidatorType = BuiltinData -> BuiltinData -> BuiltinData -> BuiltinUnit
@@ -112,3 +113,9 @@ pubKeyHashFromHex hex = PubKeyHash (toBuiltin bytes)
   bytes = case Hex.decode $ Text.encodeUtf8 hex of
     Left err -> Prelude.error $ "Fail to decode bytestring from hex " <> Text.unpack hex <> ": " <> err
     Right v -> v
+
+currencyFromBytes :: ByteString -> CurrencySymbol
+currencyFromBytes bytes = CurrencySymbol (toBuiltin bytes)
+
+scriptHashToBytes :: ScriptHash -> ByteString
+scriptHashToBytes (ScriptHash bibs) = fromBuiltin bibs

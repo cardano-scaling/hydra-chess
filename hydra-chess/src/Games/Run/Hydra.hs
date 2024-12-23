@@ -23,8 +23,9 @@ import qualified Chess.ELO as ELO
 import Chess.Plutus (
   MintAction (Mint),
   ToData,
+  currencyFromBytes,
   pubKeyHash,
-  pubKeyHashFromHex,
+  scriptHashToBytes,
   validatorToBytes,
  )
 import qualified Chess.Token as Token
@@ -282,7 +283,7 @@ hasToken logger network token gameAddress = do
 hasOutputAt :: Logger -> Network -> String -> IO (Maybe String)
 hasOutputAt logger network address = do
   output <- getUTxOFor logger network address
-  if (length output == 1)
+  if length output == 1
     then pure $ Just $ head output
     else pure Nothing
 
@@ -406,32 +407,15 @@ findPubKeyHash :: FilePath -> IO String
 findPubKeyHash vkFile =
   show . pubKeyHash . convert . hash @_ @Blake2b_224 <$> deserialiseFromEnvelope @PublicKey vkFile
 
-findEloScriptFile :: FilePath -> Network -> IO (String, FilePath)
+findEloScriptFile :: FilePath -> Network -> IO FilePath
 findEloScriptFile gameVkFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   let eloScriptFile = configDir </> "elo-script.plutus"
-  -- FIXME: overwrite script every time?
-  gameVk <- deserialiseFromEnvelope @PublicKey gameVkFile
-  let pkh = pubKeyHash $ convert $ hash @_ @Blake2b_224 gameVk
-      bytes = ELO.validatorBytes pkh
-  BS.writeFile eloScriptFile bytes
-  pure (show pkh, eloScriptFile)
-
-makeEloScriptFile :: String -> Network -> IO String
-makeEloScriptFile pkh network = do
-  configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
-  let eloScriptFile = configDir </> "elo-script-" <> pkh <.> "plutus"
-      bytes = ELO.validatorBytes (pubKeyHashFromHex $ Text.pack pkh)
-
-  BS.writeFile eloScriptFile bytes
+  BS.writeFile eloScriptFile eloScriptBytes
   pure eloScriptFile
 
-eloScriptBytes :: FilePath -> Network -> IO BS.ByteString
-eloScriptBytes gameVkFile network = do
-  configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
-  gameVk <- deserialiseFromEnvelope @PublicKey gameVkFile
-  let pkh = pubKeyHash $ convert $ hash @_ @Blake2b_224 gameVk
-  pure $ ELO.validatorBytes pkh
+eloScriptBytes :: BS.ByteString
+eloScriptBytes = ELO.validatorBytes (currencyFromBytes $ scriptHashToBytes Token.validatorHash)
 
 findDatumFile :: (ToData a) => String -> a -> Network -> IO String
 findDatumFile name datum network = do
@@ -454,9 +438,9 @@ findMintScriptFile network = do
 findGameScriptFile :: Network -> IO FilePath
 findGameScriptFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
-  let eloScriptFile = configDir </> "game-script.plutus"
-  BS.writeFile eloScriptFile (validatorToBytes Contract.validatorScript)
-  pure eloScriptFile
+  let gameScriptFile = configDir </> "game-script.plutus"
+  BS.writeFile gameScriptFile (validatorToBytes Contract.validatorScript)
+  pure gameScriptFile
 
 makeGameFlatFile :: Network -> IO FilePath
 makeGameFlatFile network = do

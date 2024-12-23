@@ -21,29 +21,61 @@ import PlutusTx.Prelude
 
 import Chess.Plutus (ValidatorType, scriptValidatorHash, validatorToBytes, wrapValidator)
 import Data.ByteString (ByteString)
-import PlutusCore.Version (plcVersion100)
-import PlutusLedgerApi.V2 (PubKeyHash, ScriptHash, SerialisedScript, serialiseCompiledCode)
+import PlutusCore.Core (plcVersion100)
+import PlutusLedgerApi.V2 (
+  CurrencySymbol,
+  PubKeyHash,
+  ScriptContext (..),
+  ScriptHash,
+  SerialisedScript,
+  TokenName (..),
+  TxInInfo (..),
+  TxInfo (..),
+  TxOut (..),
+  Value (getValue),
+  getPubKeyHash,
+  serialiseCompiledCode,
+ )
+import PlutusLedgerApi.V2.Contexts (findOwnInput)
+import PlutusPrelude (guard)
 import PlutusTx (CompiledCode, compile, liftCode, unsafeApplyCode)
+import PlutusTx.AssocMap (Map, lookup)
 
--- FIXME: check script can only be spent by `PubKeyHash`
-validator :: PubKeyHash -> Integer -> BuiltinData -> BuiltinData -> Bool
-validator _pkh _eloScore _redeemer _context = True
+validator :: CurrencySymbol -> Integer -> BuiltinData -> ScriptContext -> Bool
+validator tokenCurrency _eloScore _redeemer context =
+  traceIfFalse "check signature matches token owner" (checkSignature tokenCurrency context)
 {-# INLINEABLE validator #-}
 
-compiledValidator :: CompiledCode (PubKeyHash -> ValidatorType)
+checkSignature :: CurrencySymbol -> ScriptContext -> Bool
+checkSignature currency context@ScriptContext{scriptContextTxInfo = TxInfo{txInfoSignatories}} =
+  isJust findSignatory
+ where
+  findSignatory = do
+    TxInInfo{txInInfoResolved} <- findOwnInput context
+    value <- lookup currency $ getValue $ txOutValue txInInfoResolved
+    traverse (findSignatory' value) txInfoSignatories
+
+  findSignatory' :: Map TokenName Integer -> PubKeyHash -> Maybe PubKeyHash
+  findSignatory' tokens signatory = do
+    token <- lookup (TokenName $ getPubKeyHash signatory) tokens
+    guard $ token == 1
+    pure signatory
+{-# INLINEABLE checkSignature #-}
+
+compiledValidator :: CompiledCode (CurrencySymbol -> ValidatorType)
 compiledValidator =
   $$(compile [||wrap . validator||])
  where
   wrap = wrapValidator @Integer @BuiltinData
 
-validatorScript :: PubKeyHash -> SerialisedScript
-validatorScript pkh =
+validatorScript :: CurrencySymbol -> SerialisedScript
+validatorScript currency =
   serialiseCompiledCode
     $ compiledValidator
-    `unsafeApplyCode` PlutusTx.liftCode plcVersion100 pkh
+    `unsafeApplyCode` PlutusTx.liftCode plcVersion100 currency
 
-validatorHash :: PubKeyHash -> ScriptHash
+validatorHash :: CurrencySymbol -> ScriptHash
 validatorHash = scriptValidatorHash . validatorScript
 
-validatorBytes :: PubKeyHash -> ByteString
+validatorBytes :: CurrencySymbol -> ByteString
 validatorBytes = validatorToBytes . validatorScript
