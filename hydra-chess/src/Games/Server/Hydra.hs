@@ -9,7 +9,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -18,7 +17,6 @@
 
 module Games.Server.Hydra where
 
-import Chess.Data (fromJSONDatum)
 import Chess.Game (Check (..), Side (..))
 import qualified Chess.Game as Chess
 import Chess.GameState (ChessGame (..), ChessPlay (..))
@@ -53,34 +51,27 @@ import Data.Aeson (
   (.:),
   (.=),
  )
-import Data.Aeson.Key (fromText)
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Aeson.Types (FromJSON (..), Pair)
-import qualified Data.Aeson.Types as Aeson
-import Data.Bifunctor (first)
+import Data.Aeson.Types (FromJSON (..))
 import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
-import Data.Either (fromRight)
 import Data.Foldable (toList)
 import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import Data.List (intersperse)
 import qualified Data.List as List
 import Data.Maybe (fromMaybe)
-import Data.Scientific (floatingOrInteger)
 import Data.Sequence (Seq ((:|>)), (|>))
 import qualified Data.Sequence as Seq
-import Data.String (IsString (..))
 import Data.Text (Text, pack, unpack)
-import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.Encoding as LT
 import Data.Word (Word64)
 import GHC.Generics (Generic)
-import GHC.Stack (HasCallStack)
 import Game.Chess (Chess, ChessEnd (..), GamePlay (..))
-import Game.Client.Console (Coins, SimpleUTxO (..), parseQueryUTxO)
 import Game.Server (
   Content (..),
   FromChain (..),
@@ -109,6 +100,7 @@ import Games.Run.Hydra (
   getVerificationKeyAddress,
   mkTempFile,
  )
+import Games.Server.JSON (GameToken, GameTokens, asString, extractGameState, extractGameToken, extractGameTxIn, findUTxOWithAddress, findUTxOWithPolicyId, stringifyValue)
 import Network.HTTP.Client (responseBody, responseStatus)
 import Network.HTTP.Simple (httpLBS, parseRequest, setRequestBodyJSON)
 import Network.HTTP.Types (statusCode)
@@ -160,15 +152,6 @@ data CommitError = CommitError String
 instance ToJSON CommitError where
   toJSON (CommitError msg) =
     object ["tag" .= ("CommitError" :: Text), "error" .= msg]
-
-type GameToken =
-  ( String -- txin
-  , String -- pkh
-  , Integer -- lovelace
-  , Integer -- elo
-  )
-
-type GameTokens = [GameToken]
 
 data InvalidMove
   = InvalidMove Chess.IllegalMove
@@ -313,7 +296,7 @@ withHydraServer logger network me host k = do
     let pid = Token.validatorHashHex
         token = "1 " <> pid <> "." <> pkh
 
-    eloScriptFile <- findEloScriptFile vk network
+    eloScriptFile <- findEloScriptFile network
     eloScriptAddress <- getScriptAddress eloScriptFile network
 
     let args =
@@ -418,14 +401,8 @@ withHydraServer logger network me host k = do
       (gameSkFile, gameVkFile) <- findKeys Game network
       gameAddress <- getVerificationKeyAddress vkFile network
 
-      gameToken <-
+      utxo <-
         checkGameTokenIsAvailable logger network gameSkFile gameVkFile
-          >>= \tok ->
-            case parseQueryUTxO $ pack tok of
-              Left err -> throwIO $ CommitError $ unpack err
-              Right utxo -> pure utxo
-
-      let utxo = mkFullUTxO (Text.pack gameAddress) Nothing gameToken
 
       -- commit is now external, so we need to handle query to the server, signature and then
       -- submission via the cardano-cli
@@ -444,6 +421,8 @@ withHydraServer logger network me host k = do
               CommitError $
                 "Commit transaction failed with error "
                   <> show other
+                  <> " "
+                  <> LT.unpack (LT.decodeUtf8 (responseBody response))
                   <> " for UTxO "
                   <> asString utxo
 
@@ -646,7 +625,7 @@ withHydraServer logger network me host k = do
       gameScriptAddress <- getScriptAddress gameScriptFile network
 
       -- find ELO script & address
-      eloScriptFile <- findEloScriptFile vkFile network
+      eloScriptFile <- findEloScriptFile network
       eloScriptAddress <- getScriptAddress eloScriptFile network
 
       -- retrieve current UTxO state
@@ -755,7 +734,7 @@ withHydraServer logger network me host k = do
 
   makeGameInput :: GameToken -> IO [String]
   makeGameInput (txin, pkh, _, _) = do
-    eloScriptFile <- findEloScriptFile pkh network
+    eloScriptFile <- findEloScriptFile network
 
     pure $
       [ "--tx-in"
@@ -806,61 +785,6 @@ withHydraServer logger network me host k = do
             _ -> Nothing
         )
         >>= maybe (go (n - 1)) pure
-
-data FullUTxO = FullUTxO
-  { txIn :: Text
-  , address :: Text
-  , value :: Coins
-  , datumhash :: Maybe Text
-  , scriptInfo :: Maybe ScriptInfo
-  }
-  deriving stock (Eq, Show)
-
-data ScriptInfo = ScriptInfo
-  { datumWitness :: ByteString
-  -- ^ CBOR of datum
-  , scriptWitness :: Value
-  -- ^ Text enveloppe of script
-  , redeemerWitness :: ByteString
-  -- ^ CBOR of redeemer
-  }
-  deriving stock (Eq, Show)
-
-instance ToJSON FullUTxO where
-  toJSON FullUTxO{txIn, address, value, datumhash, scriptInfo} =
-    object
-      [ fromText txIn
-          .= object
-            ( [ "address" .= address
-              , "value" .= value
-              , "datumhash" .= datumhash
-              ]
-                <> maybe [] asJson scriptInfo
-            )
-      ]
-
-asJson :: ScriptInfo -> [Pair]
-asJson ScriptInfo{datumWitness, scriptWitness, redeemerWitness} =
-  [ "witness"
-      .= object
-        [ "datum" .= (decodeUtf8 $ Hex.encode $ datumWitness)
-        , "redeemer" .= (decodeUtf8 $ Hex.encode $ redeemerWitness)
-        , "plutusV2Script" .= scriptWitness
-        ]
-  ]
-
-mkFullUTxO :: Text -> Maybe ScriptInfo -> SimpleUTxO -> FullUTxO
-mkFullUTxO address scriptInfo = \case
-  SimpleUTxO{txIn, coins} ->
-    FullUTxO{txIn, address, value = coins, scriptInfo, datumhash = Nothing}
-  UTxOWithDatum{txIn, coins, datumhash} ->
-    FullUTxO
-      { txIn
-      , address
-      , value = coins
-      , scriptInfo
-      , datumhash = Just datumhash
-      }
 
 waitFor :: TVar IO (Seq (FromChain g Hydra)) -> (FromChain g Hydra -> Maybe a) -> IO a
 waitFor events predicate = do
@@ -974,132 +898,3 @@ withClient logger Host{host, port} action = do
     res <- WS.withPingThread connection 10 (pure ()) $ action connection
     WS.sendClose connection ("Bye" :: Text)
     pure res
-
-asString :: (ToJSON a) => a -> String
-asString = unpack . decodeUtf8 . LBS.toStrict . encode
-
-extractGameToken :: String -> String -> Value -> Maybe String
-extractGameToken pid pkh = \case
-  Object kv -> foldMap (findUTxOWithValue pid pkh) (KeyMap.toList kv)
-  _ -> Nothing
-
-findUTxOWithAddress :: String -> (KeyMap.Key, Value) -> Bool
-findUTxOWithAddress address (txin, txout) =
-  case txout of
-    Object kv ->
-      case filter ((== fromString "address") . fst) $ KeyMap.toList kv of
-        [(_, String addr)] | addr == pack address -> True
-        _ -> False
-    _ -> False
-
-findUTxOWithPolicyId :: String -> (Aeson.Key, Value) -> GameTokens
-findUTxOWithPolicyId pid (txin, txout) =
-  case txout of
-    Object kv ->
-      case filter ((== fromString "value") . fst) $ KeyMap.toList kv of
-        [(_, Object val)] ->
-          case filter ((== fromString pid) . fst) $ KeyMap.toList val of
-            [(_, Object toks)] ->
-              (\pkh -> (asText txin, asText pkh, 2000000, extractEloFromDatum kv))
-                <$> KeyMap.keys toks
-            _ -> []
-        _ -> []
-    _ -> []
- where
-  asText = unpack . Key.toText
-
-extractEloFromDatum :: Aeson.Object -> Integer
-extractEloFromDatum kv =
-  case KeyMap.lookup (fromString "inlineDatum") kv of
-    Just (Number n) -> fromRight 0 $ floatingOrInteger @Double n
-    _ -> 0
-
-findUTxOWithValue :: String -> String -> (KeyMap.Key, Value) -> Maybe String
-findUTxOWithValue pid pkh (txin, txout) =
-  case txout of
-    Object kv ->
-      if hasValueFor pid pkh kv
-        then Just $ unpack $ Key.toText txin
-        else Nothing
-    _ -> Nothing
-
-hasValueFor :: String -> String -> Aeson.Object -> Bool
-hasValueFor pid pkh kv =
-  case filter ((== fromString "value") . fst) $ KeyMap.toList kv of
-    [(_, Object val)] ->
-      case filter ((== fromString pid) . fst) $ KeyMap.toList val of
-        [(_, Object tok)] ->
-          case filter ((== fromString pkh) . fst) $ KeyMap.toList tok of
-            [] -> False
-            _ -> True
-        _ -> False
-    _ -> False
-
-extractGameState :: (HasCallStack) => String -> Value -> Either Text ChessGame
-extractGameState address utxo =
-  case utxo of
-    Object kv ->
-      case List.find (findUTxOWithAddress address) (KeyMap.toList kv) of
-        Nothing -> Left $ "No output at address " <> pack address <> " for utxo"
-        Just (_, txout) -> findGameState txout
-    _ -> Left $ "Not an object: " <> decodeUtf8 (LBS.toStrict $ encode utxo)
-
-extractGameTxIn :: String -> Value -> Either Text (String, (Integer, GameTokens))
-extractGameTxIn address utxo =
-  case utxo of
-    Object kv ->
-      case List.find (findUTxOWithAddress address) (KeyMap.toList kv) of
-        Nothing -> Left $ "No output at address " <> pack address <> " for utxo"
-        Just (txin, txout) -> (unpack $ Key.toText txin,) <$> extractValue txout
-    _ -> Left $ "Not an object: " <> decodeUtf8 (LBS.toStrict $ encode utxo)
-
-extractValue :: Value -> Either Text (Integer, GameTokens)
-extractValue = \case
-  Object kv ->
-    case kv KeyMap.!? fromString "value" of
-      Just (Object v) -> extractTokens v
-      _ -> Left "No key 'value'"
-  _ -> Left "Not an object"
-
-extractTokens :: Aeson.Object -> Either Text (Integer, GameTokens)
-extractTokens kv = do
-  adas :: Integer <- first ((<> " is not an integral number") . pack . show @Double) . floatingOrInteger =<< lovelace
-  pure $ (adas, tokens)
- where
-  lovelace = case kv KeyMap.!? fromString "lovelace" of
-    Just (Number n) -> Right n
-    _ -> Left "No key 'inlineDatum'"
-
-  tokens = foldMap getTokens $ filter ((/= "lovelace") . fst) $ KeyMap.toList kv
-
-  getTokens :: (Aeson.Key, Value) -> GameTokens
-  getTokens (pid, v) =
-    case v of
-      Object toks -> foldMap (getToken pid) $ KeyMap.toList toks
-      _ -> []
-
-  getToken :: Aeson.Key -> (Aeson.Key, Value) -> GameTokens
-  getToken pid (tok, Number val) =
-    case floatingOrInteger @Double val of
-      Left _ -> []
-      Right i -> [(unpack $ Key.toText pid, unpack $ Key.toText tok, i, 0)] -- We don't know the datum here
-  getToken _ _ = []
-
-stringifyValue :: (Integer, GameTokens) -> String
-stringifyValue (adas, tokens) =
-  show adas <> " lovelace + " <> List.intercalate " + " (map stringify tokens)
- where
-  stringify (pid, tok, val, _) = show val <> " " <> pid <.> tok
-
-findGameState :: Value -> Either Text ChessGame
-findGameState txout =
-  extractInlineDatum txout >>= fromJSONDatum
-
-extractInlineDatum :: Value -> Either Text Value
-extractInlineDatum value =
-  case value of
-    Object kv ->
-      case kv KeyMap.!? fromString "inlineDatum" of
-        Just v -> Right v
-        _ -> Left $ "No key 'inlineDatum' in " <> (decodeUtf8 $ LBS.toStrict $ encode value)
-    _ -> Left $ "Not an object" <> (decodeUtf8 $ LBS.toStrict $ encode value)

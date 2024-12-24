@@ -55,7 +55,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Short as SBS
-import Data.Either (rights)
 import Data.Function (on)
 import qualified Data.List as List
 import Data.Text (Text, unpack)
@@ -65,7 +64,7 @@ import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Encoding as Lazy
 import Data.Void (absurd)
 import GHC.Generics (Generic)
-import Game.Client.Console (Coins (..), SimpleUTxO (..), parseQueryUTxO)
+import Game.Client.Console (Coins (..))
 import Game.Server (Host (..))
 import Games.Cardano.Crypto ()
 import Games.Cardano.Network (Network (..), networkDir, networkMagicArgs)
@@ -78,6 +77,7 @@ import Games.Run.Cardano (
   findSocketPath,
   withLogFile,
  )
+import Games.Server.JSON (FullUTxO (..), UTxOs (..), valueContains)
 import Network.HTTP.Simple (getResponseBody, httpLBS, parseRequest)
 import System.Directory (
   Permissions (..),
@@ -241,7 +241,7 @@ hydraNodeProcess logger network executableFile nodeSocket = do
         <> networkMagicArgs network
   pure (me, proc executableFile args)
 
-checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO String
+checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO FullUTxO
 checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
   pkh <- findPubKeyHash gameVkFile
   let token = "1 " <> Token.validatorHashHex <.> pkh
@@ -273,35 +273,27 @@ checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
             pure utxo
         )
 
-hasToken :: Logger -> Network -> String -> String -> IO (Maybe String)
+hasToken :: Logger -> Network -> String -> String -> IO (Maybe FullUTxO)
 hasToken logger network token eloScriptAddress = do
   getUTxOFor logger network eloScriptAddress
     >>= pure . \case
-      [] -> Nothing
-      utxos ->
-        -- FIXME: This is pretty crude but should work for now and
-        -- does not require us to parse the UTxO fully
-        case filter (token `List.isInfixOf`) utxos of
+      UTxOs [] -> Nothing
+      UTxOs utxos ->
+        case filter (valueContains $ Text.pack token) utxos of
           utxo : _ -> Just utxo -- FIXME: can there be multiple game tokens?
           [] -> Nothing
 
-hasOutputAt :: Logger -> Network -> String -> IO (Maybe String)
-hasOutputAt logger network address = do
-  output <- getUTxOFor logger network address
-  if length output == 1
-    then pure $ Just $ head output
-    else pure Nothing
-
-getUTxOFor :: Logger -> Network -> String -> IO [String]
+getUTxOFor :: Logger -> Network -> String -> IO UTxOs
 getUTxOFor logger network address = do
   logWith logger $ QueryingUtxo address
   cardanoCliExe <- findCardanoCliExecutable
   socketPath <- findSocketPath network
-  drop 2 . lines
-    <$> readProcess
+  out <-
+    readProcess
       cardanoCliExe
       ( [ "query"
         , "utxo"
+        , "--output-json"
         , "--address"
         , address
         , "--socket-path"
@@ -310,6 +302,9 @@ getUTxOFor logger network address = do
           <> networkMagicArgs network
       )
       ""
+  case eitherDecode (Lazy.encodeUtf8 $ LT.pack out) of
+    Right utxos -> pure utxos
+    Left err -> throwIO $ userError $ "Failed to parse UTxO from " <> out <> "\nerror: " <> err
 
 getVerificationKeyAddress :: FilePath -> Network -> IO String
 getVerificationKeyAddress vkFile network = do
@@ -330,13 +325,11 @@ registerGameToken logger network gameSkFile gameVkFile = do
   eloScriptFile <- findEloScriptFile network
   eloScriptAddress <- getScriptAddress eloScriptFile network
 
-  utxo <- getUTxOFor logger network fundAddress -- TODO: check it has enough ADAs
+  UTxOs utxo <- getUTxOFor logger network fundAddress -- TODO: check it has enough ADAs
   when (null utxo) $ throwIO (userError "No UTxO with funds")
   let txin =
         mkTxIn $
-          List.maximumBy (compare `on` totalLovelace) $
-            rights $
-              fmap (parseQueryUTxO . Text.pack) utxo
+          List.maximumBy (compare `on` totalLovelace) utxo
 
   cardanoCliExe <- findCardanoCliExecutable
   socketPath <- findSocketPath network
@@ -458,31 +451,26 @@ makeGameFlatFile network = do
   BS.writeFile gameFlatFile (SBS.fromShort Contract.validatorScript)
   pure gameFlatFile
 
-mkTxIn :: SimpleUTxO -> String
-mkTxIn =
-  Text.unpack . \case
-    SimpleUTxO{txIn} -> txIn
-    UTxOWithDatum{txIn} -> txIn
+mkTxIn :: FullUTxO -> String
+mkTxIn FullUTxO{txIn} = Text.unpack txIn
 
 checkFundsAreAvailable :: Logger -> Network -> FilePath -> FilePath -> IO ()
 checkFundsAreAvailable logger network signingKeyFile verificationKeyFile = do
   ownAddress <- getVerificationKeyAddress verificationKeyFile network
   logWith logger $ CheckingHydraFunds ownAddress
-  output <- getUTxOFor logger network ownAddress
+  UTxOs output <- getUTxOFor logger network ownAddress
   let maxLovelaceAvailable =
         if null output
           then 0
-          else maximum $ fmap totalLovelace $ rights $ fmap (parseQueryUTxO . Text.pack) output
+          else maximum $ fmap totalLovelace output
   when (maxLovelaceAvailable < 10_000_000) $ do
     logWith logger $ NotEnoughFundsForHydra network ownAddress maxLovelaceAvailable
     threadDelay 60_000_000
     checkFundsAreAvailable logger network signingKeyFile verificationKeyFile
   logWith logger $ CheckedFundForHydra ownAddress
 
-totalLovelace :: SimpleUTxO -> Integer
-totalLovelace = \case
-  SimpleUTxO{coins = Coins{lovelace}} -> lovelace
-  UTxOWithDatum{coins = Coins{lovelace}} -> lovelace
+totalLovelace :: FullUTxO -> Integer
+totalLovelace FullUTxO{value = Coins{lovelace}} = lovelace
 
 findHydraSigningKey :: Logger -> Network -> IO (PublicKey, FilePath)
 findHydraSigningKey logger network = do

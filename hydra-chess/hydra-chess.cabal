@@ -33,6 +33,7 @@ library
     Games.Run.Cardano
     Games.Run.Hydra
     Games.Server.Hydra
+    Games.Server.JSON
     Games.Server.IO
     Games.Terminal
 

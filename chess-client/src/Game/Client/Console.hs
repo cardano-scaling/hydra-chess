@@ -1,22 +1,30 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Game.Client.Console where
+module Game.Client.Console (
+  mkImpureIO,
+  inputParser,
+  helpText,
+  Coins (..),
+  Coin (..),
+  toListOfTokens,
+) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (IOException, handle, throwIO)
-import Data.Aeson (ToJSON (..), object, (.=))
+import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Aeson.Key (fromText)
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor (first)
-import Data.Either (lefts, rights)
-import Data.Functor (void, ($>))
-import qualified Data.List as List
+import Data.Functor (($>))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text, pack)
@@ -26,8 +34,8 @@ import Data.Void (Void)
 import Game.Client.IO (Command (..), Err (..), HasIO (..))
 import System.Exit (ExitCode (ExitSuccess))
 import System.IO.Error (isEOFError)
-import Text.Megaparsec (Parsec, between, empty, many, parse, sepBy, takeRest, try)
-import Text.Megaparsec.Char (alphaNumChar, char, hexDigitChar, space, space1, string)
+import Text.Megaparsec (Parsec, empty, many, parse, sepBy, takeRest, try)
+import Text.Megaparsec.Char (alphaNumChar, space, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void Text
@@ -112,16 +120,16 @@ stopParser = do
 identifier :: Parser Text
 identifier = pack <$> ((:) <$> alphaNumChar <*> many alphaNumChar)
 
-hexString :: Parser Text
-hexString = pack <$> ((:) <$> hexDigitChar <*> many hexDigitChar)
-
 spaceConsumer :: Parser ()
 spaceConsumer =
   L.space space1 (L.skipLineComment "#") empty
 
 data SimpleUTxO
   = SimpleUTxO {txIn :: Text, coins :: Coins}
-  | UTxOWithDatum {txIn :: Text, coins :: Coins, datumhash :: Text}
+  | UTxOWithDatum {txIn :: Text, coins :: Coins, datum :: Datum}
+  deriving stock (Eq, Show)
+
+data Datum = DatumHash Text | DatumInt Integer
   deriving stock (Eq, Show)
 
 data Coins = Coins
@@ -134,6 +142,9 @@ newtype Coin = Coin (Map Text Integer)
   deriving stock (Eq, Show)
   deriving newtype (ToJSON)
 
+instance FromJSON Coin where
+  parseJSON = fmap Coin . parseJSON
+
 instance ToJSON Coins where
   toJSON Coins{lovelace, natives} =
     object $
@@ -144,65 +155,18 @@ instance ToJSON Coins where
           )
           (Map.toList natives)
 
--- | Parse a single line of a UTxO for TxIn and value parts.
--- TODO: Move this elsewhere, this has nothing to do here
-parseQueryUTxO :: Text -> Either Text SimpleUTxO
-parseQueryUTxO = first (pack . show) . parse utxoParser ""
+instance FromJSON Coins where
+  parseJSON = withObject "Coins" $ \kv ->
+    Coins
+      <$> kv .: "lovelace"
+      <*> (Map.fromList <$> traverse parsePair (filter ((/= "lovelace") . fst) $ KeyMap.toList kv))
+   where
+    parsePair :: (Aeson.Key, Aeson.Value) -> Aeson.Parser (Text, Coin)
+    parsePair (k, v) = (Key.toText k,) <$> parseJSON v
 
-utxoParser :: Parser SimpleUTxO
-utxoParser = do
-  txIn <- txInParser <* spaceConsumer
-  (value, datums) <- valueParser
-  case datums of
-    [Just h] -> pure $ UTxOWithDatum txIn value h
-    [Nothing] -> pure $ SimpleUTxO txIn value
-    [] -> pure $ SimpleUTxO txIn value
-    other -> fail $ "Unexpected datums " <> show other
+toListOfTokens :: Map Text Coin -> [Text]
+toListOfTokens = Map.foldrWithKey (\k c acc -> toListOfCoins k c <> acc) []
 
-valueParser :: Parser (Coins, [Maybe Text])
-valueParser = do
-  lovelace :: Integer <- L.decimal <* spaceConsumer <* string "lovelace" <* spaceConsumer
-  pairs <- many tokenOrDatumParser
-  pure $ (Coins{lovelace, natives = Map.fromList $ makeTokens (lefts pairs)}, rights pairs)
-
-makeTokens :: [(Text, Text, Integer)] -> [(Text, Coin)]
-makeTokens tokens = fmap mkObject $ List.groupBy samePid tokens
- where
-  samePid (p, _, _) (p', _, _) = p == p'
-
-mkObject :: [(Text, Text, Integer)] -> (Text, Coin)
-mkObject tokens = (pid, Coin $ Map.fromList tokensAndValues)
- where
-  (pid, _, _) = head tokens
-  tokensAndValues = fmap (\(_, tok, val) -> (tok, val)) tokens
-
-tokenOrDatumParser :: Parser (Either (Text, Text, Integer) (Maybe Text))
-tokenOrDatumParser =
-  (Left <$> try tokenParser) <|> (Right <$> datumParser)
-
-datumParser :: Parser (Maybe Text)
-datumParser = do
-  void $ string "+ "
-  noDatum <|> datumhash
- where
-  noDatum = void (string "TxOutDatumNone") *> pure Nothing
-  datumhash =
-    string "TxOutDatumHash"
-      *> spaceConsumer
-      *> (string "AlonzoEraOnwardsBabbage" <|> string "ScriptDataInBabbageEra")
-      *> spaceConsumer
-      *> (Just <$> between "\"" "\"" hexString)
-
-tokenParser :: Parser (Text, Text, Integer)
-tokenParser = do
-  void $ char '+' <* spaceConsumer
-  amount :: Integer <- L.decimal <* spaceConsumer
-  policyId <- hexString <* char '.'
-  tokenName <- hexString <* spaceConsumer
-  pure $ (policyId, tokenName, amount)
-
-txInParser :: Parser Text
-txInParser = do
-  txId <- hexString <* spaceConsumer
-  txIx :: Integer <- L.decimal
-  pure $ txId <> "#" <> pack (show txIx)
+toListOfCoins :: Text -> Coin -> [Text]
+toListOfCoins currency (Coin coins) =
+  Map.foldrWithKey (\k v acc -> pack (show v) <> " " <> currency <> "." <> k : acc) [] coins
