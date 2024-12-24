@@ -245,37 +245,42 @@ checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO Str
 checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
   pkh <- findPubKeyHash gameVkFile
   let token = "1 " <> Token.validatorHashHex <.> pkh
-  gameAddress <- getVerificationKeyAddress gameVkFile network
-  logWith logger $ CheckingGameToken pkh gameAddress
-  hasToken logger network token gameAddress >>= \case
-    Just tok -> pure tok
+
+  eloScriptFile <- findEloScriptFile network
+  eloScriptAddress <- getScriptAddress eloScriptFile network
+
+  logWith logger $ CheckingGameToken pkh eloScriptAddress
+  hasToken logger network token eloScriptAddress >>= \case
+    Just utxo -> pure utxo
     Nothing -> do
       -- FIXME: it could be the case the token is already consumed in an ongoing game
       -- how to detect that situation? probably by wrapping the hydra server in such
       -- way that it's only started when the player wants to play, which means the
       -- controller knows there's an ongoing game it does not try to recreate a game
       -- token
-      logWith logger (NoGameTokenRegistered gameAddress network)
+      logWith logger (NoGameTokenRegistered eloScriptAddress network)
       registerGameToken logger network gameSkFile gameVkFile
-      waitForToken token gameAddress
+      waitForToken token eloScriptAddress
  where
-  waitForToken token gameAddress = do
+  waitForToken token eloScriptAddress = do
     logWith logger (WaitForTokenRegistration token)
     threadDelay 10_000_000
-    hasToken logger network token gameAddress
+    hasToken logger network token eloScriptAddress
       >>= maybe
-        (waitForToken token gameAddress)
-        ( \tok -> do
-            logWith logger $ GameTokenRegistered gameAddress network
-            pure tok
+        (waitForToken token eloScriptAddress)
+        ( \utxo -> do
+            logWith logger $ GameTokenRegistered eloScriptAddress network
+            pure utxo
         )
 
 hasToken :: Logger -> Network -> String -> String -> IO (Maybe String)
-hasToken logger network token gameAddress = do
-  getUTxOFor logger network gameAddress
+hasToken logger network token eloScriptAddress = do
+  getUTxOFor logger network eloScriptAddress
     >>= pure . \case
       [] -> Nothing
       utxos ->
+        -- FIXME: This is pretty crude but should work for now and
+        -- does not require us to parse the UTxO fully
         case filter (token `List.isInfixOf`) utxos of
           utxo : _ -> Just utxo -- FIXME: can there be multiple game tokens?
           [] -> Nothing
@@ -319,9 +324,11 @@ getScriptAddress vkFile network = do
 registerGameToken :: Logger -> Network -> FilePath -> FilePath -> IO ()
 registerGameToken logger network gameSkFile gameVkFile = do
   (fundSk, fundVk) <- findKeys Fuel network
-  (gameSk, gameVk) <- findKeys Game network
+  (_, gameVk) <- findKeys Game network
+
   fundAddress <- getVerificationKeyAddress fundVk network
-  gameAddress <- getVerificationKeyAddress gameVk network
+  eloScriptFile <- findEloScriptFile network
+  eloScriptAddress <- getScriptAddress eloScriptFile network
 
   utxo <- getUTxOFor logger network fundAddress -- TODO: check it has enough ADAs
   when (null utxo) $ throwIO (userError "No UTxO with funds")
@@ -352,7 +359,7 @@ registerGameToken logger network gameSkFile gameVkFile = do
         , "--tx-in-collateral"
         , txin
         , "--tx-out"
-        , gameAddress <> " + 10000000 lovelace + " <> token
+        , eloScriptAddress <> " + 10000000 lovelace + " <> token
         , "--mint"
         , token
         , "--mint-script-file"
@@ -407,11 +414,13 @@ findPubKeyHash :: FilePath -> IO String
 findPubKeyHash vkFile =
   show . pubKeyHash . convert . hash @_ @Blake2b_224 <$> deserialiseFromEnvelope @PublicKey vkFile
 
-findEloScriptFile :: FilePath -> Network -> IO FilePath
-findEloScriptFile gameVkFile network = do
+findEloScriptFile :: Network -> IO FilePath
+findEloScriptFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   let eloScriptFile = configDir </> "elo-script.plutus"
-  BS.writeFile eloScriptFile eloScriptBytes
+  doesFileExist eloScriptFile >>= \case
+    True -> pure ()
+    False -> BS.writeFile eloScriptFile eloScriptBytes
   pure eloScriptFile
 
 eloScriptBytes :: BS.ByteString
