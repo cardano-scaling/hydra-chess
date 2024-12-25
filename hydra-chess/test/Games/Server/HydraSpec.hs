@@ -1,6 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Games.Server.HydraSpec where
 
@@ -8,6 +9,7 @@ import qualified Chess.Game as Chess
 import Chess.GameState (ChessGame (..))
 import Data.Aeson (eitherDecode)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
@@ -75,6 +77,54 @@ spec = do
             ]
         )
 
+  it "parses UTxOs from cardano-cli output with inline datum" $ do
+    let utxos = eitherDecode utxoFromCliWithInlineDatum
+    utxos
+      `shouldBe` Right
+        ( UTxOs
+            [ FullUTxO
+                { txIn = "1c0e16c8d480f6586e7d923ccca28dcad9eb3a74a93c978931ae829278fd6de3#0"
+                , address = "addr_test1wpy42hv0ngfsd2cw8hxwuynx54n9rtates8gs782v3kgqns7t0dav"
+                , value =
+                    Coins
+                      2000000
+                      ( Map.fromList
+                          [
+                            ( "5152458e042159beca8f5efe14e4848444a5ead9c49cf3d389f449f5"
+                            , Coin (Map.fromList [("920e34e143094e3cb33f5a314db4d9d8f5a254e96cd6e699ecbf1b18", 1)])
+                            )
+                          ]
+                      )
+                , datum = Nothing
+                , datumHash = Nothing
+                , inlineDatum = Just $ Aeson.Object (KeyMap.fromList [("int", Aeson.Number 1000)])
+                , inlineDatumRaw = Just "\EM\ETX\232"
+                , inlineDatumHash = Just "6d<\141\189\224\173\SI\t*\236-Mg'0\232c\214\248\208\&4\199\218;\140\&1\216h\226\vN"
+                , scriptInfo = Nothing
+                }
+            , FullUTxO
+                { txIn = "66ddca8f2cf73d4773c15c6099eebf7e4fd1f22b846bc64e3e2a3368f498372f#0"
+                , address = "addr_test1wpy42hv0ngfsd2cw8hxwuynx54n9rtates8gs782v3kgqns7t0dav"
+                , value =
+                    Coins
+                      2000000
+                      ( Map.fromList
+                          [
+                            ( "5152458e042159beca8f5efe14e4848444a5ead9c49cf3d389f449f5"
+                            , Coin (Map.fromList [("920e34e143094e3cb33f5a314db4d9d8f5a254e96cd6e699ecbf1b18", 1)])
+                            )
+                          ]
+                      )
+                , datum = Nothing
+                , datumHash = Nothing
+                , inlineDatum = Just $ Aeson.Object (KeyMap.fromList [("int", Aeson.Number 1000)])
+                , inlineDatumRaw = Just "\EM\ETX\232"
+                , inlineDatumHash = Just "6d<\141\189\224\173\SI\t*\236-Mg'0\232c\214\248\208\&4\199\218;\140\&1\216h\226\vN"
+                , scriptInfo = Nothing
+                }
+            ]
+        )
+
   it "decodes peers JSON file" $ do
     let peersJSON = "[{\"name\":\"arnaud-mbp\",\"address\":{\"host\":\"192.168.1.103\",\"port\":5551},\"hydraKey\":\"58206197ef01d4b8afab12850b1d0f3245b6b196c067dc17f2f86a001285b535a720\",\"cardanoKey\":\"5820b8e0dfdb94e6b1fbadd8cd70756d995664d3cc41d0bd52ec0a1e982f711ec5a1\"}]"
 
@@ -104,3 +154,6 @@ snapshotConfirmed = "{\"f37e113e9b76ce2d373640d479a94ef6717f7273c81add1ce258aaac
 
 utxoFromCli :: LBS.ByteString
 utxoFromCli = "{ \"1b0ea1b1db9beca2e74d984f49063bf3b092f935ad48fbdaf5c4b6504636ba49#1\": { \"address\": \"addr_test1vzvtjwtqpvaaknyv7zugpjt7w7hgw7k29hujlxu0uy9gtwchan3c6\", \"datum\": null, \"datumhash\": null, \"inlineDatum\": null, \"inlineDatumRaw\": null, \"referenceScript\": null, \"value\": { \"lovelace\": 3347361 } }, \"c3eb0231fc9da50f29e4964d1f73c0fa6c01234e26b9788365fdebc8c2f26c97#1\": { \"address\": \"addr_test1vzvtjwtqpvaaknyv7zugpjt7w7hgw7k29hujlxu0uy9gtwchan3c6\", \"datum\": null, \"datumhash\": null, \"inlineDatum\": null, \"inlineDatumRaw\": null, \"referenceScript\": null, \"value\": { \"lovelace\": 8915180 } }, \"cd536c0877458dde3ba0b3ee6cbb90e5c1ae904ad3fe9304f154d801312bf5f5#0\": { \"address\": \"addr_test1vzvtjwtqpvaaknyv7zugpjt7w7hgw7k29hujlxu0uy9gtwchan3c6\", \"datum\": null, \"datumhash\": null, \"inlineDatum\": null, \"inlineDatumRaw\": null, \"referenceScript\": null, \"value\": { \"lovelace\": 14562790 } }}"
+
+utxoFromCliWithInlineDatum :: LBS.ByteString
+utxoFromCliWithInlineDatum = "{ \"1c0e16c8d480f6586e7d923ccca28dcad9eb3a74a93c978931ae829278fd6de3#0\": { \"address\": \"addr_test1wpy42hv0ngfsd2cw8hxwuynx54n9rtates8gs782v3kgqns7t0dav\", \"datum\": null, \"inlineDatum\": { \"int\": 1000 }, \"inlineDatumRaw\": \"1903e8\", \"inlineDatumhash\": \"36643c8dbde0ad0f092aec2d4d672730e863d6f8d034c7da3b8c31d868e20b4e\", \"referenceScript\": null, \"value\": { \"5152458e042159beca8f5efe14e4848444a5ead9c49cf3d389f449f5\": { \"920e34e143094e3cb33f5a314db4d9d8f5a254e96cd6e699ecbf1b18\": 1 }, \"lovelace\": 2000000 } }, \"66ddca8f2cf73d4773c15c6099eebf7e4fd1f22b846bc64e3e2a3368f498372f#0\": { \"address\": \"addr_test1wpy42hv0ngfsd2cw8hxwuynx54n9rtates8gs782v3kgqns7t0dav\", \"datum\": null, \"inlineDatum\": { \"int\": 1000 }, \"inlineDatumRaw\": \"1903e8\", \"inlineDatumhash\": \"36643c8dbde0ad0f092aec2d4d672730e863d6f8d034c7da3b8c31d868e20b4e\", \"referenceScript\": null, \"value\": { \"5152458e042159beca8f5efe14e4848444a5ead9c49cf3d389f449f5\": { \"920e34e143094e3cb33f5a314db4d9d8f5a254e96cd6e699ecbf1b18\": 1 }, \"lovelace\": 2000000 } }}"
