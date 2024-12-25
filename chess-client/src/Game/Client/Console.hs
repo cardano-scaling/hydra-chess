@@ -53,7 +53,7 @@ helpText =
     , "       coordinates, for example:"
     , "       > play d2-d4"
     , "       Displays updated board upon validation of the move"
-    , " * stop : Stops the current game session, closing the Hydre head (can take a while)"
+    , " * stop : Stops the current game session, closing the Hydra head (can take a while)"
     , " * quit : Quits hydra-chess gracefully (Ctrl-D or Ctrl-C also works)"
     ]
 

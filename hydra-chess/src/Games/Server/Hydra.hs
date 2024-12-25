@@ -101,7 +101,20 @@ import Games.Run.Hydra (
   getVerificationKeyAddress,
   mkTempFile,
  )
-import Games.Server.JSON (FullUTxO (..), GameToken, GameTokens, asString, extractGameState, extractGameToken, extractGameTxIn, findUTxOWithAddress, findUTxOWithPolicyId, stringifyValue)
+import Games.Server.JSON (
+  Coins (..),
+  FullUTxO (..),
+  GameToken,
+  GameTokens,
+  UTxOs,
+  asString,
+  extractGameState,
+  extractGameToken,
+  extractGameTxIn,
+  findUTxOWithAddress,
+  findUTxOWithPolicyId,
+  stringifyValue,
+ )
 import Network.HTTP.Client (responseBody, responseStatus)
 import Network.HTTP.Simple (httpLBS, parseRequest, setRequestBodyJSON)
 import Network.HTTP.Types (statusCode)
@@ -169,7 +182,7 @@ data GameLog
   | HydraCommandFailed {request :: Request}
   | ConnectedTo {peer :: Text}
   | DisconnectedFrom {peer :: Text}
-  | NoGameToken {utxo :: Value}
+  | NoGameToken {utxo :: UTxOs}
   | CommittingTo {headId :: HeadId}
   | WaitingForCommit {me :: HydraParty, headId :: HeadId}
   | CommittedTo {headId :: HeadId}
@@ -241,7 +254,7 @@ withHydraServer logger network me host k = do
             ReadyToFanout headId ->
               atomically (modifyTVar' events (|> HeadClosing headId))
             GetUTxOResponse{utxo} ->
-              atomically (modifyTVar' events (|> CollectUTxO (JsonContent utxo)))
+              atomically (modifyTVar' events (|> CollectUTxO (JsonContent $ toJSON utxo)))
             RolledBack{} -> pure ()
             TxValid{} -> pure ()
             TxInvalid{validationError} ->
@@ -282,33 +295,43 @@ withHydraServer logger network me host k = do
           | otherwise ->
               atomically $ modifyTVar' events (|> GameChanged headId st [])
 
-  splitGameUTxO :: Connection -> Value -> IO ()
+  splitGameUTxO :: Connection -> UTxOs -> IO ()
   splitGameUTxO cnx utxo = do
     myGameToken <- findGameToken utxo
     case myGameToken of
       Nothing -> logWith logger $ NoGameToken utxo
       Just txin -> postSplitTx cnx txin
 
-  postSplitTx :: Connection -> String -> IO ()
-  postSplitTx cnx txin = do
+  postSplitTx :: Connection -> FullUTxO -> IO ()
+  postSplitTx cnx FullUTxO{txIn, value, inlineDatum} = do
     (sk, vk) <- findKeys Game network
     gameAddress <- getVerificationKeyAddress vk network
     pkh <- findPubKeyHash vk
     let pid = Token.validatorHashHex
         token = "1 " <> pid <> "." <> pkh
+        adas = lovelace value
+        collateral = adas - 2_000_000
 
     eloScriptFile <- findEloScriptFile network
     eloScriptAddress <- getScriptAddress eloScriptFile network
+    eloRedeemerFile <- findDatumFile "split" () network
 
     let args =
           [ "--tx-in"
-          , txin
+          , unpack txIn
+          , "--tx-in-script-file"
+          , eloScriptFile
+          , "--tx-in-inline-datum-present"
+          , "--tx-in-redeemer-file"
+          , eloRedeemerFile
+          , "--tx-in-execution-units"
+          , "(500000000000,1000000000)"
           , "--tx-out"
-          , gameAddress <> "+8000000" -- ADA part
+          , gameAddress <> "+" <> show collateral -- ADA part
           , "--tx-out"
           , eloScriptAddress <> "+ 2000000 lovelace + " <> token
           , "--tx-out-inline-datum-value"
-          , "1000"
+          , LT.unpack (LT.decodeUtf8 $ encode inlineDatum)
           -- FIXME: should be some ELO rating, but where does it come from?
           -- comes from the datum of the token txout?
           ]
@@ -378,7 +401,7 @@ withHydraServer logger network me host k = do
 
         logWith logger $ SubmittedTransaction signedFile
 
-  findGameToken :: Value -> IO (Maybe String)
+  findGameToken :: UTxOs -> IO (Maybe FullUTxO)
   findGameToken utxo = do
     pkh <- findKeys Game network >>= findPubKeyHash . snd
     let pid = Token.validatorHashHex
@@ -865,19 +888,19 @@ data Response = Response
 
 data Output
   = HeadIsInitializing {headId :: HeadId, parties :: [HydraParty]}
-  | Committed {headId :: HeadId, party :: HydraParty, utxo :: Value}
-  | HeadIsOpen {headId :: HeadId, utxo :: Value}
+  | Committed {headId :: HeadId, party :: HydraParty, utxo :: UTxOs}
+  | HeadIsOpen {headId :: HeadId, utxo :: UTxOs}
   | Greetings {me :: HydraParty}
-  | HeadIsAborted {headId :: HeadId, utxo :: Value}
-  | HeadIsFinalized {headId :: HeadId, utxo :: Value}
+  | HeadIsAborted {headId :: HeadId, utxo :: UTxOs}
+  | HeadIsFinalized {headId :: HeadId, utxo :: UTxOs}
   | HeadIsClosed {headId :: HeadId, snapshotNumber :: Int, contestationDeadline :: UTCTime}
   | ReadyToFanout {headId :: HeadId}
   | PostTxOnChainFailed {postChainTx :: Value, postTxError :: Value}
   | RolledBack
   | CommandFailed {clientInput :: Request}
-  | GetUTxOResponse {headId :: HeadId, utxo :: Value}
+  | GetUTxOResponse {headId :: HeadId, utxo :: UTxOs}
   | TxValid {headId :: HeadId, transaction :: Value}
-  | TxInvalid {headId :: HeadId, utxo :: Value, transaction :: Value, validationError :: Value}
+  | TxInvalid {headId :: HeadId, utxo :: UTxOs, transaction :: Value, validationError :: Value}
   | SnapshotConfirmed {headId :: HeadId, snapshot :: Snapshot, signatures :: Value}
   | PeerConnected {peer :: Text}
   | PeerDisconnected {peer :: Text}

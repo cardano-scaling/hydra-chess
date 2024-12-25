@@ -57,6 +57,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Short as SBS
 import Data.Function (on)
 import qualified Data.List as List
+import Data.Maybe (isJust)
 import Data.Text (Text, unpack)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -279,9 +280,12 @@ hasToken logger network token eloScriptAddress = do
     >>= pure . \case
       UTxOs [] -> Nothing
       UTxOs utxos ->
-        case filter (valueContains $ Text.pack token) utxos of
+        case filter checkTokenUTxO utxos of
           utxo : _ -> Just utxo -- FIXME: can there be multiple game tokens?
           [] -> Nothing
+ where
+  checkTokenUTxO utxo@FullUTxO{value = Coins{lovelace}, inlineDatum} =
+    lovelace >= 10_000_000 && valueContains (Text.pack token) utxo && isJust inlineDatum
 
 getUTxOFor :: Logger -> Network -> String -> IO UTxOs
 getUTxOFor logger network address = do
@@ -352,6 +356,8 @@ registerGameToken logger network gameVkFile = do
         , txin
         , "--tx-out"
         , eloScriptAddress <> " + 10000000 lovelace + " <> token
+        , "--tx-out-inline-datum-value"
+        , "1000"
         , "--mint"
         , token
         , "--mint-script-file"

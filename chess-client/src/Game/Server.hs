@@ -132,7 +132,7 @@ data FromChain g c
   | HeadClosing {headId :: HeadId}
   | HeadClosed {headId :: HeadId}
   | OtherMessage {content :: Content}
-  | CollectUTxO {utxo :: Content}
+  | CollectUTxO {utxo :: Content} -- FIXME: this shows the whole abstraction leaks like the Titanic
   deriving (Generic)
 
 deriving instance (Game g, IsChain c) => Show (FromChain g c)
