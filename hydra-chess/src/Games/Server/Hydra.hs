@@ -402,7 +402,7 @@ withHydraServer logger network me host k = do
       gameAddress <- getVerificationKeyAddress vkFile network
 
       utxo <-
-        checkGameTokenIsAvailable logger network gameSkFile gameVkFile
+        checkGameTokenIsAvailable logger network gameVkFile
 
       -- commit is now external, so we need to handle query to the server, signature and then
       -- submission via the cardano-cli

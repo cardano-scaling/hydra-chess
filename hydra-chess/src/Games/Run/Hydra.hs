@@ -241,8 +241,8 @@ hydraNodeProcess logger network executableFile nodeSocket = do
         <> networkMagicArgs network
   pure (me, proc executableFile args)
 
-checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> FilePath -> IO FullUTxO
-checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
+checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> IO FullUTxO
+checkGameTokenIsAvailable logger network gameVkFile = do
   pkh <- findPubKeyHash gameVkFile
   let token = "1 " <> Token.validatorHashHex <.> pkh
 
@@ -259,7 +259,7 @@ checkGameTokenIsAvailable logger network gameSkFile gameVkFile = do
       -- controller knows there's an ongoing game it does not try to recreate a game
       -- token
       logWith logger (NoGameTokenRegistered eloScriptAddress network)
-      registerGameToken logger network gameSkFile gameVkFile
+      registerGameToken logger network gameVkFile
       waitForToken token eloScriptAddress
  where
   waitForToken token eloScriptAddress = do
@@ -316,10 +316,9 @@ getScriptAddress vkFile network = do
   cardanoCliExe <- findCardanoCliExecutable
   readProcess cardanoCliExe (["address", "build", "--payment-script-file", vkFile] <> networkMagicArgs network) ""
 
-registerGameToken :: Logger -> Network -> FilePath -> FilePath -> IO ()
-registerGameToken logger network gameSkFile gameVkFile = do
+registerGameToken :: Logger -> Network -> FilePath -> IO ()
+registerGameToken logger network gameVkFile = do
   (fundSk, fundVk) <- findKeys Fuel network
-  (_, gameVk) <- findKeys Game network
 
   fundAddress <- getVerificationKeyAddress fundVk network
   eloScriptFile <- findEloScriptFile network
@@ -337,7 +336,7 @@ registerGameToken logger network gameSkFile gameVkFile = do
   mintScriptFile <- findMintScriptFile network
   mintRedeemerFile <- findMintRedeermeFile network
 
-  pkh <- findPubKeyHash gameVk
+  pkh <- findPubKeyHash gameVkFile
 
   txFileRaw <- mkTempFile
 
