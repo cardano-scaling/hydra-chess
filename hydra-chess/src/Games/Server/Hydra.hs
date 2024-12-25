@@ -44,6 +44,7 @@ import Data.Aeson (
   FromJSON,
   ToJSON (..),
   Value (..),
+  decodeFileStrict,
   eitherDecode',
   encode,
   object,
@@ -100,7 +101,7 @@ import Games.Run.Hydra (
   getVerificationKeyAddress,
   mkTempFile,
  )
-import Games.Server.JSON (GameToken, GameTokens, asString, extractGameState, extractGameToken, extractGameTxIn, findUTxOWithAddress, findUTxOWithPolicyId, stringifyValue)
+import Games.Server.JSON (FullUTxO (..), GameToken, GameTokens, asString, extractGameState, extractGameToken, extractGameTxIn, findUTxOWithAddress, findUTxOWithPolicyId, stringifyValue)
 import Network.HTTP.Client (responseBody, responseStatus)
 import Network.HTTP.Simple (httpLBS, parseRequest, setRequestBodyJSON)
 import Network.HTTP.Types (statusCode)
@@ -314,11 +315,10 @@ withHydraServer logger network me host k = do
 
     submitNewTx cnx args sk
 
-  submitNewTx cnx args sk = do
+  buildNewTx cnx args outFile sk = do
     cardanoCliExe <- findCardanoCliExecutable
     socketPath <- findSocketPath network
     protocolParametersFile <- findProtocolParametersFile network
-    txRawFile <- mkTempFile
     let fullArgs =
           [ "conway"
           , "transaction"
@@ -332,13 +332,17 @@ withHydraServer logger network me host k = do
                , "--protocol-params-file"
                , protocolParametersFile
                , "--out-file"
-               , txRawFile
+               , outFile
                ]
-        signedFile = txRawFile <.> "signed"
 
-    logWith logger $ BuildingTransaction txRawFile fullArgs
+    logWith logger $ BuildingTransaction outFile fullArgs
 
     callProcess cardanoCliExe fullArgs
+
+  signTx cnx args outFile sk = do
+    cardanoCliExe <- findCardanoCliExecutable
+    socketPath <- findSocketPath network
+    let signedFile = outFile <.> "signed"
 
     callProcess
       cardanoCliExe
@@ -346,13 +350,21 @@ withHydraServer logger network me host k = do
         , "transaction"
         , "sign"
         , "--tx-file"
-        , txRawFile
+        , outFile
         , "--signing-key-file"
         , sk
         , "--out-file"
         , signedFile
         ]
         <> networkMagicArgs network
+    pure signedFile
+
+  submitNewTx cnx args sk = do
+    txRawFile <- mkTempFile
+
+    buildNewTx cnx args txRawFile sk
+
+    signedFile <- signTx cnx args txRawFile sk
 
     envelope <- eitherDecode' @Value <$> LBS.readFile signedFile
 
@@ -404,10 +416,36 @@ withHydraServer logger network me host k = do
       utxo <-
         checkGameTokenIsAvailable logger network gameVkFile
 
+      eloScriptFile <- findEloScriptFile network
+      eloRedeemerFile <- findDatumFile "commit" () network
+      txRawFile <- mkTempFile
+
+      -- build script info
+      let args =
+            [ "--tx-in"
+            , unpack (txIn utxo)
+            , "--tx-in-script-file"
+            , eloScriptFile
+            , "--tx-in-inline-datum-present"
+            , "--tx-in-redeemer-file"
+            , eloRedeemerFile
+            , "--tx-in-execution-units"
+            , "(5000000000,5000000)" -- TODO: compute exact execution units, this is half the budget for preprod now
+            ]
+
+      buildNewTx cnx args txRawFile skFile
+      tx <- decodeFileStrict @Value txRawFile
+
+      let commitBlueprint =
+            object
+              [ "blueprintTx" .= tx
+              , "utxo" .= utxo
+              ]
+
       -- commit is now external, so we need to handle query to the server, signature and then
       -- submission via the cardano-cli
       request <- parseRequest ("POST http://" <> unpack host <> ":" <> show port <> "/commit")
-      response <- httpLBS $ setRequestBodyJSON utxo request
+      response <- httpLBS $ setRequestBodyJSON commitBlueprint request
 
       txFileRaw <-
         case statusCode (responseStatus response) of
