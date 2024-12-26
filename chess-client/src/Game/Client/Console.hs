@@ -14,6 +14,7 @@ module Game.Client.Console (
   Coins (..),
   Coin (..),
   toListOfTokens,
+  readInput,
 ) where
 
 import Control.Applicative ((<|>))

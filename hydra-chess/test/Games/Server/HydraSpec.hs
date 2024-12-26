@@ -1,7 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Games.Server.HydraSpec where
 
@@ -50,7 +50,6 @@ spec = do
                 , inlineDatum = Nothing
                 , inlineDatumRaw = Nothing
                 , inlineDatumHash = Nothing
-                , scriptInfo = Nothing
                 }
             , FullUTxO
                 { txIn = "c3eb0231fc9da50f29e4964d1f73c0fa6c01234e26b9788365fdebc8c2f26c97#1"
@@ -61,7 +60,6 @@ spec = do
                 , inlineDatum = Nothing
                 , inlineDatumRaw = Nothing
                 , inlineDatumHash = Nothing
-                , scriptInfo = Nothing
                 }
             , FullUTxO
                 { txIn = "cd536c0877458dde3ba0b3ee6cbb90e5c1ae904ad3fe9304f154d801312bf5f5#0"
@@ -72,7 +70,6 @@ spec = do
                 , inlineDatum = Nothing
                 , inlineDatumRaw = Nothing
                 , inlineDatumHash = Nothing
-                , scriptInfo = Nothing
                 }
             ]
         )
@@ -100,7 +97,6 @@ spec = do
                 , inlineDatum = Just $ Aeson.Object (KeyMap.fromList [("int", Aeson.Number 1000)])
                 , inlineDatumRaw = Just "\EM\ETX\232"
                 , inlineDatumHash = Just "6d<\141\189\224\173\SI\t*\236-Mg'0\232c\214\248\208\&4\199\218;\140\&1\216h\226\vN"
-                , scriptInfo = Nothing
                 }
             , FullUTxO
                 { txIn = "66ddca8f2cf73d4773c15c6099eebf7e4fd1f22b846bc64e3e2a3368f498372f#0"
@@ -120,7 +116,6 @@ spec = do
                 , inlineDatum = Just $ Aeson.Object (KeyMap.fromList [("int", Aeson.Number 1000)])
                 , inlineDatumRaw = Just "\EM\ETX\232"
                 , inlineDatumHash = Just "6d<\141\189\224\173\SI\t*\236-Mg'0\232c\214\248\208\&4\199\218;\140\&1\216h\226\vN"
-                , scriptInfo = Nothing
                 }
             ]
         )
@@ -140,9 +135,10 @@ spec = do
 
   it "extracts game token from JSON UTxO" $ do
     let utxo = fromJust $ Aeson.decode "{\"c5a00b09e82c334bd04d62313ab25608ca70e7d1014ca9c8dfc09251d51ea6a0#0\":{\"address\":\"addr_test1wz4y5mkg3m83dh3npqygnzst74s26cewjw3uel2ylcuqagg9zad83\",\"datum\":null,\"inlineDatumhash\":\"36643c8dbde0ad0f092aec2d4d672730e863d6f8d034c7da3b8c31d868e20b4e\",\"inlineDatum\":{\"int\": 1000},\"inlineDatumRaw\":\"1903e8\",\"referenceScript\":null,\"value\":{\"e18ad836532a69a93160efe11bcfac05b812a092ef3420042e700c10\":{\"1ad7cb51c9e2d6250bd80395a5c920f6f628adc4b1bd057a81c9be98\":1},\"lovelace\":10000000}}}"
+        UTxOs [u] = utxo
 
     extractGameToken "e18ad836532a69a93160efe11bcfac05b812a092ef3420042e700c10" "1ad7cb51c9e2d6250bd80395a5c920f6f628adc4b1bd057a81c9be98" utxo
-      `shouldBe` Just "c5a00b09e82c334bd04d62313ab25608ca70e7d1014ca9c8dfc09251d51ea6a0#0"
+      `shouldBe` Just u
 
   it "extracts game state from UTxO" $ do
     let utxo = fromJust $ Aeson.decode snapshotConfirmed
