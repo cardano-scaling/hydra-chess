@@ -113,6 +113,11 @@ dataToJSON = \case
   I n ->
     object ["int" .= n]
 
+integerFromDatum :: Value -> Maybe Integer
+integerFromDatum v = case jsonToData v of
+  Right (I n) -> Just n
+  _ -> Nothing
+
 jsonToData ::
   Value -> Either String Data
 jsonToData = \case

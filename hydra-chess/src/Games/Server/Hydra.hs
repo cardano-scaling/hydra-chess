@@ -17,6 +17,7 @@
 
 module Games.Server.Hydra where
 
+import Chess.Data (integerFromDatum)
 import Chess.Game (Check (..), Side (..))
 import qualified Chess.Game as Chess
 import Chess.GameState (ChessGame (..), ChessPlay (..))
@@ -42,18 +43,18 @@ import Crypto.Hash (Blake2b_224, hash)
 import Crypto.PubKey.Curve25519 (PublicKey)
 import Data.Aeson (
   FromJSON,
+  Result (..),
   ToJSON (..),
   Value (..),
   decodeFileStrict,
   eitherDecode',
   encode,
+  fromJSON,
   object,
   withObject,
   (.:),
   (.=),
  )
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (FromJSON (..))
 import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
@@ -61,9 +62,9 @@ import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (toList)
 import Data.IORef (atomicWriteIORef, newIORef, readIORef)
-import Data.List (intersperse)
 import qualified Data.List as List
-import Data.Maybe (fromMaybe)
+import qualified Data.Map as Map
+import Data.Maybe (fromMaybe, isJust)
 import Data.Sequence (Seq ((:|>)), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text, pack, unpack)
@@ -102,6 +103,8 @@ import Games.Run.Hydra (
   mkTempFile,
  )
 import Games.Server.JSON (
+  Coin (..),
+  Coins (..),
   FullUTxO (..),
   GameToken,
   GameTokens,
@@ -109,8 +112,7 @@ import Games.Server.JSON (
   asString,
   extractGameState,
   extractGameTxIn,
-  findUTxOWithAddress,
-  findUTxOWithPolicyId,
+  hasAddress,
   stringifyValue,
  )
 import Network.HTTP.Client (responseBody, responseStatus)
@@ -268,7 +270,7 @@ withHydraServer logger network me host k = do
   -- TODO
   -- handle NotEnoughFuel message from hydra
 
-  handleGameState :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> Value -> Bool -> IO ()
+  handleGameState :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> UTxOs -> Bool -> IO ()
   handleGameState events cnx headId utxo isReplaying = do
     -- find output paying to game script address
     gameScriptFile <- findGameScriptFile network
@@ -512,7 +514,7 @@ withHydraServer logger network me host k = do
     let collateral = findCollateral gameAddress utxo
         pid = Token.validatorHashHex
         gameTokens = findGameTokens pid utxo
-        lovelace = sum $ (\(_, _, l, _) -> l) <$> gameTokens
+        lovelace = sum $ (\FullUTxO{value = Coins{lovelace}} -> lovelace) <$> gameTokens
 
     gameInputs <- concat <$> mapM makeGameInput gameTokens
 
@@ -522,7 +524,7 @@ withHydraServer logger network me host k = do
 
     let initGame =
           ChessGame
-            { players = fmap (\(_, pkh, _, elo) -> (pubKeyHashFromHex (pack pkh), elo)) gameTokens
+            { players = fmap (makePlayerState pid) gameTokens
             , game = Chess.initialGame
             }
 
@@ -534,8 +536,8 @@ withHydraServer logger network me host k = do
 
     let args =
           gameInputs
-            <> ["--tx-in", collateral]
-            <> ["--tx-in-collateral", collateral]
+            <> ["--tx-in", unpack $ txIn collateral]
+            <> ["--tx-in-collateral", unpack $ txIn collateral]
             <> [ "--tx-out"
                , gameScriptAddress
                   <> "+ "
@@ -600,9 +602,9 @@ withHydraServer logger network me host k = do
       -- define transaction arguments
       let args =
             [ "--tx-in"
-            , collateral
+            , unpack $ txIn collateral
             , "--tx-in-collateral"
-            , collateral
+            , unpack $ txIn collateral
             , "--tx-in"
             , gameStateTxIn
             , "--tx-in-script-file"
@@ -622,7 +624,7 @@ withHydraServer logger network me host k = do
 
       submitNewTx cnx args skFile
 
-  endGame :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> Value -> IO ()
+  endGame :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> UTxOs -> IO ()
   endGame events cnx utxo =
     try go >>= \case
       Left (NoSingleOwnGameToken own their) -> pure ()
@@ -643,9 +645,6 @@ withHydraServer logger network me host k = do
       -- find ELO script & address
       eloScriptFile <- findEloScriptFile network
       eloScriptAddress <- getScriptAddress eloScriptFile network
-
-      -- retrieve current UTxO state
-      utxo <- collectUTxO events cnx
 
       -- find collateral to submit end game tx
       let collateral = findCollateral gameAddress utxo
@@ -676,9 +675,9 @@ withHydraServer logger network me host k = do
             -- define transaction arguments
             pure $
               [ "--tx-in"
-              , collateral
+              , unpack $ txIn collateral
               , "--tx-in-collateral"
-              , collateral
+              , unpack $ txIn collateral
               , "--tx-in"
               , gameStateTxIn
               , "--tx-in-script-file"
@@ -703,9 +702,9 @@ withHydraServer logger network me host k = do
             -- define transaction arguments
             pure $
               [ "--tx-in"
-              , collateral
+              , unpack $ txIn collateral
               , "--tx-in-collateral"
-              , collateral
+              , unpack $ txIn collateral
               , "--tx-in"
               , gameStateTxIn
               , "--tx-in-script-file"
@@ -729,32 +728,38 @@ withHydraServer logger network me host k = do
 
       submitNewTx cnx args skFile
 
-  makeValue :: String -> GameToken -> String
-  makeValue pid (_, pkh, _, _) = "1 " <> pid <.> pkh
+  makeValue :: String -> FullUTxO -> String
+  makeValue pid FullUTxO{value = Coins{natives}} =
+    case Map.lookup (pack pid) natives of
+      Just (Coin coins) -> case Map.toList coins of
+        [(pkh, amount)] -> show amount <> " " <> pid <> "." <> unpack pkh
+        _ -> error $ "Cannot find pkh from " <> show coins
+      Nothing -> error $ "Cannot find " <> pid <> " in " <> show natives
 
-  findCollateral :: String -> Value -> String
-  findCollateral address utxo =
-    fromMaybe (error $ "Cannot find collateral for " <> address <> " from " <> asString utxo) $
-      case utxo of
-        Object kv -> unpack . Key.toText . fst <$> List.find (findUTxOWithAddress address) (KeyMap.toList kv)
-        _ -> Nothing
+  findCollateral :: String -> UTxOs -> FullUTxO
+  findCollateral address (UTxOs utxo) =
+    case filter (hasAddress address) utxo of
+      (u : _) -> u
+      _ -> error $ "Cannot find collateral for " <> address <> " from " <> asString utxo
 
   findGameTokens ::
     String ->
-    Value ->
-    [GameToken]
-  findGameTokens pid utxo =
-    case utxo of
-      Object kv -> foldMap (findUTxOWithPolicyId pid) (KeyMap.toList kv)
-      _ -> []
+    UTxOs ->
+    [FullUTxO]
+  findGameTokens pid (UTxOs utxo) =
+    filter (hasPolicyId pid) utxo
 
-  makeGameInput :: GameToken -> IO [String]
-  makeGameInput (txin, pkh, _, _) = do
+  hasPolicyId :: String -> FullUTxO -> Bool
+  hasPolicyId pid FullUTxO{value = Coins{natives}} =
+    isJust $ Map.lookup (pack pid) natives
+
+  makeGameInput :: FullUTxO -> IO [String]
+  makeGameInput FullUTxO{txIn} = do
     eloScriptFile <- findEloScriptFile network
 
     pure $
       [ "--tx-in"
-      , txin
+      , unpack txIn
       , "--tx-in-script-file"
       , eloScriptFile
       , "--tx-in-inline-datum-present"
@@ -763,6 +768,15 @@ withHydraServer logger network me host k = do
       , "--tx-in-execution-units"
       , "(10000000,100000000)"
       ]
+
+  makePlayerState pid utxo@FullUTxO{value = Coins{natives}, inlineDatum} =
+    let pkh = fromMaybe (error $ "Cannot find pkh from utxo " <> asString utxo) $ do
+          Coin coins <- Map.lookup (pack pid) natives
+          case Map.keys coins of
+            [pkh] -> Just pkh
+            _ -> Nothing
+        elo = fromMaybe (error $ "No datum to extract Elo from " <> asString utxo) (inlineDatum >>= integerFromDatum)
+     in (pubKeyHashFromHex pkh, elo)
 
   sendClose :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> IO ()
   sendClose cnx events = do
@@ -787,17 +801,20 @@ withHydraServer logger network me host k = do
     pure indexed
 
   -- Collect only TxIn
-  collectUTxO :: TVar IO (Seq (FromChain g Hydra)) -> Connection -> IO Value
+  collectUTxO :: TVar IO (Seq (FromChain g Hydra)) -> Connection -> IO UTxOs
   collectUTxO events cnx = go 10
    where
-    go :: Int -> IO Value
+    go :: Int -> IO UTxOs
     go 0 = throwIO $ ServerException "Timeout (10s) waiting for GetUTxO"
     go n = do
       WS.sendTextData cnx (encode GetUTxO)
       timeout
         10_000_000
         ( waitFor events $ \case
-            CollectUTxO (JsonContent txt) -> Just txt
+            CollectUTxO (JsonContent txt) ->
+              case fromJSON txt of
+                Success utxo -> Just utxo
+                Error err -> error err
             _ -> Nothing
         )
         >>= maybe (go (n - 1)) pure
@@ -863,7 +880,7 @@ data Output
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
-data Snapshot = Snapshot {headId :: HeadId, utxo :: Value, confirmed :: [Value], number :: Word64}
+data Snapshot = Snapshot {headId :: HeadId, utxo :: UTxOs, confirmed :: [Value], number :: Word64}
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON)
 
