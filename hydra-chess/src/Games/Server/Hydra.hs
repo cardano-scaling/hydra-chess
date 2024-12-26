@@ -89,6 +89,7 @@ import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
   HydraLog (..),
   KeyRole (Game),
+  checkCollateralUTxO,
   checkGameTokenIsAvailable,
   deserialiseFromEnvelope,
   findDatumFile,
@@ -96,20 +97,17 @@ import Games.Run.Hydra (
   findGameScriptFile,
   findKeys,
   findProtocolParametersFile,
-  findPubKeyHash,
   getScriptAddress,
   getVerificationKeyAddress,
   mkTempFile,
  )
 import Games.Server.JSON (
-  Coins (..),
   FullUTxO (..),
   GameToken,
   GameTokens,
-  UTxOs,
+  UTxOs (..),
   asString,
   extractGameState,
-  extractGameToken,
   extractGameTxIn,
   findUTxOWithAddress,
   findUTxOWithPolicyId,
@@ -230,7 +228,6 @@ withHydraServer logger network me host k = do
               atomically (modifyTVar' events (|> FundCommitted headId party ()))
             HeadIsOpen headId utxo -> do
               isReplaying <- readTVarIO replaying
-              unless isReplaying $ splitGameUTxO cnx utxo
               atomically (modifyTVar' events (|> HeadOpened headId))
             CommandFailed request ->
               logWith logger $ HydraCommandFailed request
@@ -295,49 +292,6 @@ withHydraServer logger network me host k = do
           | otherwise ->
               atomically $ modifyTVar' events (|> GameChanged headId st [])
 
-  splitGameUTxO :: Connection -> UTxOs -> IO ()
-  splitGameUTxO cnx utxo = do
-    myGameToken <- findGameToken utxo
-    case myGameToken of
-      Nothing -> logWith logger $ NoGameToken utxo
-      Just txin -> postSplitTx cnx txin
-
-  postSplitTx :: Connection -> FullUTxO -> IO ()
-  postSplitTx cnx FullUTxO{txIn, value, inlineDatum} = do
-    (sk, vk) <- findKeys Game network
-    gameAddress <- getVerificationKeyAddress vk network
-    pkh <- findPubKeyHash vk
-    let pid = Token.validatorHashHex
-        token = "1 " <> pid <> "." <> pkh
-        adas = lovelace value
-        collateral = adas - 2_000_000
-
-    eloScriptFile <- findEloScriptFile network
-    eloScriptAddress <- getScriptAddress eloScriptFile network
-    eloRedeemerFile <- findDatumFile "split" () network
-
-    let args =
-          [ "--tx-in"
-          , unpack txIn
-          , "--tx-in-script-file"
-          , eloScriptFile
-          , "--tx-in-inline-datum-present"
-          , "--tx-in-redeemer-file"
-          , eloRedeemerFile
-          , "--tx-in-execution-units"
-          , "(500000000000,1000000000)"
-          , "--tx-out"
-          , gameAddress <> "+" <> show collateral -- ADA part
-          , "--tx-out"
-          , eloScriptAddress <> "+ 2000000 lovelace + " <> token
-          , "--tx-out-inline-datum-value"
-          , LT.unpack (LT.decodeUtf8 $ encode inlineDatum)
-          -- FIXME: should be some ELO rating, but where does it come from?
-          -- comes from the datum of the token txout?
-          ]
-
-    submitNewTx cnx args sk
-
   buildNewTx cnx args outFile sk = do
     cardanoCliExe <- findCardanoCliExecutable
     socketPath <- findSocketPath network
@@ -401,12 +355,6 @@ withHydraServer logger network me host k = do
 
         logWith logger $ SubmittedTransaction signedFile
 
-  findGameToken :: UTxOs -> IO (Maybe FullUTxO)
-  findGameToken utxo = do
-    pkh <- findKeys Game network >>= findPubKeyHash . snd
-    let pid = Token.validatorHashHex
-    pure $ extractGameToken pid pkh utxo
-
   sendInit :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> [Text] -> IO HeadId
   sendInit cnx events _unusedParties = do
     WS.sendTextData cnx (encode Init)
@@ -429,13 +377,16 @@ withHydraServer logger network me host k = do
     go = do
       logWith logger $ CommittingTo headId
       cardanoCliExe <- findCardanoCliExecutable
-      (skFile, vkFile) <- findKeys Game network
       socketPath <- findSocketPath network
 
-      -- find game token UTxO
+      -- find collateral UTxO
       (gameSkFile, gameVkFile) <- findKeys Game network
-      gameAddress <- getVerificationKeyAddress vkFile network
+      gameAddress <- getVerificationKeyAddress gameVkFile network
 
+      collateralUTxO <-
+        checkCollateralUTxO logger network gameAddress
+
+      -- find game token UTxO
       utxo <-
         checkGameTokenIsAvailable logger network gameVkFile
 
@@ -446,6 +397,10 @@ withHydraServer logger network me host k = do
       -- build script info
       let args =
             [ "--tx-in"
+            , unpack (txIn collateralUTxO)
+            , "--tx-in-collateral"
+            , unpack (txIn collateralUTxO)
+            , "--tx-in"
             , unpack (txIn utxo)
             , "--tx-in-script-file"
             , eloScriptFile
@@ -456,13 +411,13 @@ withHydraServer logger network me host k = do
             , "(5000000000,5000000)" -- TODO: compute exact execution units, this is half the budget for preprod now
             ]
 
-      buildNewTx cnx args txRawFile skFile
+      buildNewTx cnx args txRawFile gameSkFile
       tx <- decodeFileStrict @Value txRawFile
 
       let commitBlueprint =
             object
               [ "blueprintTx" .= tx
-              , "utxo" .= utxo
+              , "utxo" .= UTxOs [utxo, collateralUTxO]
               ]
 
       -- commit is now external, so we need to handle query to the server, signature and then
@@ -484,8 +439,8 @@ withHydraServer logger network me host k = do
                   <> show other
                   <> " "
                   <> LT.unpack (LT.decodeUtf8 (responseBody response))
-                  <> " for UTxO "
-                  <> asString utxo
+                  <> " for blueprint "
+                  <> asString commitBlueprint
 
       callProcess
         cardanoCliExe
@@ -495,7 +450,7 @@ withHydraServer logger network me host k = do
           , "--tx-file"
           , txFileRaw
           , "--signing-key-file"
-          , skFile
+          , gameSkFile
           , "--out-file"
           , txFileRaw <.> "signed"
           ]
@@ -586,7 +541,7 @@ withHydraServer logger network me host k = do
                   <> "+ "
                   <> show lovelace
                   <> " lovelace + "
-                  <> concat (intersperse " + " (makeValue pid <$> gameTokens))
+                  <> List.intercalate " + " (makeValue pid <$> gameTokens)
                , "--tx-out-inline-datum-file"
                , gameDatumFile
                ]

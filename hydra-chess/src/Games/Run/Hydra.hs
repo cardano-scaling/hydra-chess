@@ -120,6 +120,10 @@ data HydraLog
   | NoGameTokenRegistered {address :: String, network :: Network}
   | GameTokenRegistered {address :: String, network :: Network}
   | WaitForTokenRegistration {token :: String}
+  | CheckingCollateral {address :: String}
+  | NoCollateralRegistered {address :: String, network :: Network}
+  | CollateralRegistered {address :: String, network :: Network}
+  | WaitForCollateralRegistration {address :: String}
   | QueryingUtxo {address :: String}
   | BuildingTransaction {file :: FilePath, args :: [String]}
   | CardanoCliOutput {file :: FilePath, output :: String}
@@ -241,6 +245,115 @@ hydraNodeProcess logger network executableFile nodeSocket = do
         <> peerArguments
         <> networkMagicArgs network
   pure (me, proc executableFile args)
+
+-- | Check there's a UTxO paying at own game address with enough funds
+-- to be used as collateral within the game.
+--
+-- Remember that a script input cannot be used as collateral even if
+-- it has enough funds. This used to be handled within the head itself
+-- by "splitting" an input utxo containing the game token in two parts,
+-- but this is no longer possible if the input is a script.
+checkCollateralUTxO :: Logger -> Network -> String -> IO FullUTxO
+checkCollateralUTxO logger network gameAddress = do
+  logWith logger $ CheckingCollateral gameAddress
+  hasCollateral >>= \case
+    Just utxo -> pure utxo
+    Nothing -> do
+      logWith logger $ NoCollateralRegistered gameAddress network
+      registerCollateral
+      waitForCollateral
+ where
+  hasCollateral = do
+    getUTxOFor logger network gameAddress
+      >>= pure
+        . \case
+          UTxOs [] -> Nothing
+          UTxOs utxos ->
+            case filter checkCollateral utxos of
+              utxo : _ -> Just utxo
+              [] -> Nothing
+
+  checkCollateral utxo@FullUTxO{value = Coins{lovelace}, inlineDatum} =
+    lovelace >= 8_000_000
+
+  registerCollateral = do
+    (fundSk, fundVk) <- findKeys Fuel network
+
+    fundAddress <- getVerificationKeyAddress fundVk network
+
+    UTxOs utxo <- getUTxOFor logger network fundAddress -- TODO: check it has enough ADAs
+    unless (any ((>= 9_000_000) . lovelace . value) utxo) $
+      throwIO (userError "No UTxO with at least 8₳ to use as collateral within game")
+    let txin =
+          mkTxIn $
+            List.minimumBy (compare `on` totalLovelace) utxo
+
+    cardanoCliExe <- findCardanoCliExecutable
+    socketPath <- findSocketPath network
+
+    txFileRaw <- mkTempFile
+
+    let args =
+          [ "conway"
+          , "transaction"
+          , "build"
+          , "--tx-in"
+          , txin
+          , gameAddress <> " + 8000000 lovelace"
+          , "--change-address"
+          , fundAddress
+          , "--out-file"
+          , txFileRaw <.> "raw"
+          , "--socket-path"
+          , socketPath
+          ]
+            <> networkMagicArgs network
+
+    logWith logger $ BuildingTransaction (txFileRaw <.> "raw") args
+
+    readProcess cardanoCliExe args [] >>= logWith logger . CardanoCliOutput cardanoCliExe
+
+    callProcess
+      cardanoCliExe
+      $ [ "conway"
+        , "transaction"
+        , "sign"
+        , "--signing-key-file"
+        , fundSk
+        , "--tx-file"
+        , txFileRaw <.> "raw"
+        , "--out-file"
+        , txFileRaw <.> "signed"
+        ]
+        <> networkMagicArgs network
+
+    readProcess
+      cardanoCliExe
+      ( [ "conway"
+        , "transaction"
+        , "submit"
+        , "--tx-file"
+        , txFileRaw <.> "signed"
+        , "--socket-path"
+        , socketPath
+        ]
+          <> networkMagicArgs network
+      )
+      []
+      >>= logWith logger . CardanoCliOutput cardanoCliExe
+
+    logWith logger $ SubmittedTransaction (txFileRaw <.> "signed")
+
+  waitForCollateral = do
+    logWith logger $ WaitForCollateralRegistration gameAddress
+    threadDelay 10_000_000
+    hasCollateral
+      >>= maybe
+        waitForCollateral
+        ( \utxo -> do
+            logWith logger $ CollateralRegistered gameAddress network
+            pure utxo
+        )
 
 checkGameTokenIsAvailable :: Logger -> Network -> FilePath -> IO FullUTxO
 checkGameTokenIsAvailable logger network gameVkFile = do
