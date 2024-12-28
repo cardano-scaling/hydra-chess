@@ -719,13 +719,11 @@ mkZeroFeeParams = \case
         insert
           "maxTxExecutionUnits"
           ( Object $
-              insert "memory" ten_billions $
+              insert "memory" one_trillion $
                 insert "steps" one_trillion obj
           )
           m
       _ -> m
-
-  ten_billions = Number 10_000_000_000
 
   one_trillion = Number 1_000_000_000_000
 

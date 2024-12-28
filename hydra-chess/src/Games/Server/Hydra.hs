@@ -514,7 +514,7 @@ withHydraServer logger network me host k = do
     let collateral = findCollateral gameAddress utxo
         pid = Token.validatorHashHex
         gameTokens = findGameTokens pid utxo
-        lovelace = sum $ (\FullUTxO{value = Coins{lovelace}} -> lovelace) <$> gameTokens
+        balance = (lovelace $ value collateral) + (sum $ (\FullUTxO{value = Coins{lovelace}} -> lovelace) <$> gameTokens)
 
     gameInputs <- concat <$> mapM makeGameInput gameTokens
 
@@ -541,7 +541,7 @@ withHydraServer logger network me host k = do
             <> [ "--tx-out"
                , gameScriptAddress
                   <> "+ "
-                  <> show lovelace
+                  <> show balance
                   <> " lovelace + "
                   <> List.intercalate " + " (makeValue pid <$> gameTokens)
                , "--tx-out-inline-datum-file"
