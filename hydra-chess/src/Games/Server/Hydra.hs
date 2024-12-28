@@ -767,7 +767,7 @@ withHydraServer logger network me host k = do
       , "--tx-in-redeemer-value"
       , "[]"
       , "--tx-in-execution-units"
-      , "(1000000000,10000000000)"
+      , "(100000000,10000000000)"
       ]
 
   makePlayerState pid utxo@FullUTxO{value = Coins{natives}, inlineDatum} =
