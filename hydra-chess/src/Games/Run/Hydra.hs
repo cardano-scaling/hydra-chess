@@ -299,6 +299,7 @@ checkCollateralUTxO logger network gameAddress = do
           , "build"
           , "--tx-in"
           , txin
+          , "--tx-out"
           , gameAddress <> " + 8000000 lovelace"
           , "--change-address"
           , fundAddress
