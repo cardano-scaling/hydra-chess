@@ -670,8 +670,8 @@ findProtocolParametersFile :: Network -> IO FilePath
 findProtocolParametersFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   createDirectoryIfMissing True configDir
-  let hydraSk = configDir </> "protocol-parameters.json"
-  exists <- doesFileExist hydraSk
+  let protocolParamsFile = configDir </> "protocol-parameters.json"
+  exists <- doesFileExist protocolParamsFile
   unless exists $ do
     cardanoCliExe <- findCardanoCliExecutable
     socketPath <- findSocketPath network
@@ -680,9 +680,9 @@ findProtocolParametersFile network = do
         <$> readProcess cardanoCliExe (["query", "protocol-parameters", "--socket-path", socketPath] <> networkMagicArgs network) ""
     either
       (\err -> throwIO $ userError ("Failed to extract protocol parameters: " <> show err))
-      (LBS.writeFile hydraSk . encode)
+      (LBS.writeFile protocolParamsFile . encode)
       (mkZeroFeeParams <$> out)
-  pure hydraSk
+  pure protocolParamsFile
 
 mkZeroFeeParams :: Value -> Value
 mkZeroFeeParams = \case
