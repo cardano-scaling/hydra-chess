@@ -530,9 +530,7 @@ findEloScriptFile :: Network -> IO FilePath
 findEloScriptFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   let eloScriptFile = configDir </> "elo-script.plutus"
-  doesFileExist eloScriptFile >>= \case
-    True -> pure ()
-    False -> BS.writeFile eloScriptFile eloScriptBytes
+  BS.writeFile eloScriptFile eloScriptBytes
   pure eloScriptFile
 
 eloScriptBytes :: BS.ByteString
