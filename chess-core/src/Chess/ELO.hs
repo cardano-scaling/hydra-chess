@@ -42,8 +42,8 @@ import PlutusTx (CompiledCode, compile, liftCode, unsafeApplyCode)
 import PlutusTx.AssocMap (Map, lookup)
 
 validator :: CurrencySymbol -> Integer -> BuiltinData -> ScriptContext -> Bool
-validator tokenCurrency _eloScore _redeemer context =
-  traceIfFalse "check signature matches token owner" (checkSignature tokenCurrency context)
+validator _tokenCurrency _eloScore _redeemer _context = True
+--  traceIfFalse "check signature matches token owner" (checkSignature tokenCurrency context)
 {-# INLINEABLE validator #-}
 
 checkSignature :: CurrencySymbol -> ScriptContext -> Bool
