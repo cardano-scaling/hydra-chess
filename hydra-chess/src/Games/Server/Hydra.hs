@@ -613,7 +613,7 @@ withHydraServer logger network me host k = do
             , "--tx-in-redeemer-file"
             , moveRedeemerFile
             , "--tx-in-execution-units"
-            , "(500000000000,1000000000)"
+            , "(500000000000,10000000000)"
             , "--tx-out"
             , gameScriptAddress <> " + " <> stringifyValue gameScriptValue
             , "--tx-out-inline-datum-file"
@@ -686,7 +686,7 @@ withHydraServer logger network me host k = do
               , "--tx-in-redeemer-file"
               , endGameRedeemerFile
               , "--tx-in-execution-units"
-              , "(100000000000,1000000000)"
+              , "(100000000000,10000000000)"
               , "--tx-out"
               , eloScriptAddress <> " + " <> stringifyValue (adas, own)
               , "--tx-out-inline-datum-value"
@@ -766,7 +766,7 @@ withHydraServer logger network me host k = do
       , "--tx-in-redeemer-value"
       , "[]"
       , "--tx-in-execution-units"
-      , "(100000000,1000000000)"
+      , "(1000000000,10000000000)"
       ]
 
   makePlayerState pid utxo@FullUTxO{value = Coins{natives}, inlineDatum} =
