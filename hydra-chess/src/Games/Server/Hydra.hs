@@ -781,7 +781,6 @@ withHydraServer logger network me host k = do
 
   sendClose :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> IO ()
   sendClose cnx events = do
-    -- TODO: need to handle 'join' of collateral and game token
     WS.sendTextData cnx (encode Close)
     timeout
       600_000_000
