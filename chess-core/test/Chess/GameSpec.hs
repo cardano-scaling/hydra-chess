@@ -37,6 +37,7 @@ import Test.QuickCheck (
   elements,
   forAll,
   forAllBlind,
+  label,
   property,
   suchThat,
   tabulate,
@@ -92,9 +93,22 @@ spec = parallel $ do
     prop "no move is possible after check mate" no_move_possible_after_check_mate
   describe "Side" $ do
     prop "cannot play same side twice in a row" prop_cannot_play_same_side_twice_in_a_row
+    prop "can quit which loses game" prop_can_quit_game
   describe "General" $ do
     prop "cannot pass (move to the same position)" prop_cannot_pass
     prop "cannot move from empty position" prop_cannot_move_empty_position
+
+prop_can_quit_game :: Property
+prop_can_quit_game =
+  forAllBlind arbitrary $ \game@Game{curSide} ->
+    case apply Quit game of
+      Left e -> property False & counterexample ("error: " <> show e)
+      Right game' ->
+        isEndGame game'
+          & counterexample ("End game:\n" <> unpack (render game'))
+          & counterexample ("State: " <> show (checkState game'))
+          & label (show curSide <> " resigns")
+          & withMaxSuccess 20
 
 is_check_mate_given_cannot_evade_check :: Property
 is_check_mate_given_cannot_evade_check = do

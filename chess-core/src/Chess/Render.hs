@@ -28,6 +28,7 @@ instance Render Move where
     (Move f t) -> render f <> "-" <> render t
     CastleKing -> "O-O"
     CastleQueen -> "O-O-O"
+    Quit -> "X"
 
 instance Render Game where
   render game =

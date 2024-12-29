@@ -23,7 +23,7 @@ parseMove :: String -> ParseResult
 parseMove = evalStateT parser
 
 parser :: (MonadError Err m, MonadState String m) => m Move
-parser = parseMovePiece `catchError` const parseCastling
+parser = parseMovePiece `catchError` const parseCastling `catchError` const parseQuit
  where
   parseMovePiece = do
     c <- parseColumn
@@ -39,6 +39,12 @@ parser = parseMovePiece `catchError` const parseCastling
       ('O' : '-' : 'O' : '-' : 'O' : rest) -> put rest >> pure CastleQueen
       ('O' : '-' : 'O' : rest) -> put rest >> pure CastleKing
       _ -> parseError $ "expected 'O-O' or 'O-O-O', found: " <> s
+
+  parseQuit = do
+    s <- get
+    case s of
+      "X" -> put "" >> pure Quit
+      _ -> parseError $ "expected 'X', found:  " <> s
 
   parseError = throwError . Err . pack
 

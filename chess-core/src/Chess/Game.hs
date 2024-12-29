@@ -86,7 +86,7 @@ instance Eq PieceOnBoard where
 hasSide :: PieceOnBoard -> Side -> Bool
 hasSide PieceOnBoard{side} side' = side == side'
 
-data Check = NoCheck | Check Side | CheckMate Side
+data Check = NoCheck | Check Side | CheckMate Side | Resigned Side
   deriving (Haskell.Eq, Haskell.Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
@@ -96,12 +96,14 @@ instance Eq Check where
   NoCheck == NoCheck = True
   Check side == Check side' = side == side'
   CheckMate side == CheckMate side' = side == side'
+  Resigned side == Resigned side' = side == side'
   _ == _ = False
 
 data Move
   = Move Position Position
   | CastleKing
   | CastleQueen
+  | Quit
   deriving (Haskell.Eq, Haskell.Show, Generic, ToJSON, FromJSON)
 
 PlutusTx.unstableMakeIsData ''Move
@@ -110,10 +112,11 @@ instance Eq Move where
   Move f t == Move f' t' = f == f' && t == t'
   CastleQueen == CastleQueen = True
   CastleKing == CastleKing = True
+  Quit == Quit = True
   _ == _ = False
 
 instance Arbitrary Move where
-  arbitrary = frequency [(9, aMove), (1, aCastling)]
+  arbitrary = frequency [(9, aMove), (1, aCastling), (1, Prelude.pure Quit)]
    where
     aMove = do
       from <- arbitrary
@@ -194,6 +197,7 @@ isEndGame :: Game -> Bool
 isEndGame Game{checkState} =
   case checkState of
     CheckMate{} -> True
+    Resigned{} -> True
     _ -> False
 
 data NoCastlingReason = PiecesMoved Side | PiecesInBetween Position Piece | KingInCheck
@@ -231,9 +235,12 @@ updateCheckState game@Game{curSide, checkState} =
   sidePlaying = flipSide curSide
 
   ensureCheckIsRemoved =
-    if checkState == Check sidePlaying && isInCheck sidePlaying game
-      then Left $ StillInCheck sidePlaying
-      else Right $ game{checkState = NoCheck}
+    if checkState == Check sidePlaying
+      then
+        if isInCheck sidePlaying game
+          then Left $ StillInCheck sidePlaying
+          else Right $ game{checkState = NoCheck}
+      else Right game
 
   changeCheckState game' =
     if isInCheck curSide game'
@@ -298,6 +305,7 @@ doMove CastleKing game =
   castleKingSide game
 doMove CastleQueen game =
   castleQueenSide game
+doMove Quit game@Game{curSide} = Right $ game{checkState = Resigned curSide}
 {-# INLINEABLE doMove #-}
 
 castleKingSide :: Game -> Either IllegalMove Game
