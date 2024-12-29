@@ -275,24 +275,37 @@ withHydraServer logger network me host k = do
     -- find output paying to game script address
     gameScriptFile <- findGameScriptFile network
     gameScriptAddress <- getScriptAddress gameScriptFile network
+
     -- extract game state from inline datum encoded as Data with schema
     case extractGameState gameScriptAddress utxo of
-      Left err -> pure ()
-      Right st@ChessGame{game} ->
-        if
-          | game == Chess.initialGame ->
-              atomically $ modifyTVar' events (|> GameStarted headId st [])
-          | Chess.checkState game == CheckMate White -> do
-              atomically $ modifyTVar' events (|> GameEnded headId st BlackWins)
+      Left err ->
+        -- NOTE: we ignore the error because it's possible it's caused
+        -- by a change in the underlying contract or game data structure
+        pure ()
+      Right st ->
+        processGameState st events cnx headId utxo isReplaying
+          >>= \e -> atomically $ modifyTVar' events (|> e)
+
+  processGameState st@ChessGame{game} events cnx headId utxo isReplaying =
+    let triggerEndGame winner = do
+          unless isReplaying $ void $ async $ endGame events cnx utxo
+          pure $ GameEnded headId st winner
+     in if game == Chess.initialGame
+          then pure (GameStarted headId st [])
+          else case Chess.checkState game of
+            CheckMate White -> do
               -- FIXME this is wrong and a consequence of the incorrect structure of the
               -- application. The thread receiving messages should transform and transfer them
               -- as fast as possible but not do complicated tx handling
-              unless isReplaying $ void $ async $ endGame events cnx utxo
-          | Chess.checkState game == CheckMate Black -> do
-              atomically $ modifyTVar' events (|> GameEnded headId st WhiteWins)
-              unless isReplaying $ void $ async $ endGame events cnx utxo
-          | otherwise ->
-              atomically $ modifyTVar' events (|> GameChanged headId st [])
+              triggerEndGame BlackWins
+            Resigned White ->
+              triggerEndGame BlackWins
+            CheckMate Black ->
+              triggerEndGame WhiteWins
+            Resigned Black ->
+              triggerEndGame WhiteWins
+            _other ->
+              pure $ GameChanged headId st []
 
   buildNewTx cnx args outFile sk = do
     cardanoCliExe <- findCardanoCliExecutable

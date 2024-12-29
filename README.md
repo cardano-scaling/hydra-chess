@@ -16,7 +16,7 @@ This project started with [Black Jack](https://en.wikipedia.org/wiki/Blackjack) 
 * [x] Create Cardano transactions using only [cardano-cli](https://github.com/IntersectMBO/cardano-cli)
 * [x] Advanced smart contract: Check play is valid for any given game state
   * [x] handle castling
-  * [ ] handle quitting a game
+  * [x] handle quitting a game
   * [ ] handle proposing/accepting a draw
 * [ ] ~~Proper "randomness"~~
 * [x] Startup & configure Hydra server in the background

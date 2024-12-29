@@ -12,7 +12,7 @@ module Chess.Contract where
 
 import PlutusTx.Prelude
 
-import Chess.Game (Game (..), Move, Side (..), apply)
+import Chess.Game (Check (..), Game (..), Move, Side (..), apply)
 import Chess.GameState (ChessGame (..), ChessPlay (..))
 import Chess.Plutus (ValidatorType, scriptValidatorHash, wrapValidator)
 import PlutusLedgerApi.V2 (
@@ -30,6 +30,7 @@ import PlutusLedgerApi.V2 (
 import PlutusLedgerApi.V2.Contexts (findDatumHash, getContinuingOutputs)
 import PlutusTx (CompiledCode)
 import PlutusTx qualified
+import qualified Games.Run.Cardano as outputs
 
 validator :: ChessGame -> ChessPlay -> ScriptContext -> Bool
 validator chess play scriptContext =
@@ -91,9 +92,24 @@ checkGameOutput ctx d =
 {-# INLINEABLE checkGameOutput #-}
 
 -- | Verifies game is ending correctly and players get rewarded accordingly.
--- TODO
 checkGameEnd :: ChessGame -> ScriptContext -> Bool
-checkGameEnd _ _ = True
+checkGameEnd ChessGame{game = Game{checkState}} ctx =
+  case checkState of
+    CheckMate side -> checkEloChange side ctx
+    Resigned side -> checkEloChange side ctx
+    _other -> trace "game not ended" False
+
+-- | Verifies that transaction correctly reports Elo changes to player's
+-- game tokens' outputs.
+--
+-- We need to:
+-- * Find the outputs containing each player's token
+-- * Check these outputs pay to the Elo script (we need its hash...)
+-- * Compute the Elo change Δ for winner and loser
+-- * Check the new datum for each of these outputs is the old Elo +/- Δ
+-- * Check the outputs' value contains the game token + 2₳ deposits
+checkEloChange :: Side -> ScriptContext -> Bool
+checkEloChange _side _ctx = True
 {-# INLINEABLE checkGameEnd #-}
 
 compiledValidator :: CompiledCode ValidatorType
