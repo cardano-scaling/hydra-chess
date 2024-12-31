@@ -285,7 +285,7 @@ checkCollateralUTxO logger network gameAddress = do
       throwIO (userError "No UTxO with at least 8₳ to use as collateral within game")
     let txin =
           mkTxIn $
-            List.minimumBy (compare `on` totalLovelace) utxo
+            List.maximumBy (compare `on` totalLovelace) utxo
 
     cardanoCliExe <- findCardanoCliExecutable
     socketPath <- findSocketPath network
