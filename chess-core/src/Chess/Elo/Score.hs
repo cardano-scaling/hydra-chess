@@ -3,11 +3,29 @@
 
 module Chess.Elo.Score where
 
+import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import PlutusTx.Prelude
+import Test.QuickCheck (Arbitrary (..), elements)
 import Prelude qualified as Haskell
 
 data Result = AWin | BWin | Draw
   deriving stock (Haskell.Eq, Haskell.Show)
+
+instance ToJSON Result where
+  toJSON = \case
+    AWin -> "WhiteWins"
+    BWin -> "BlackWins"
+    Draw -> "Draw"
+
+instance FromJSON Result where
+  parseJSON = withText "Result" $ \case
+    "WhiteWins" -> Haskell.pure AWin
+    "BlackWins" -> Haskell.pure BWin
+    "Draw" -> Haskell.pure Draw
+    _other -> Haskell.fail $ "Invalid result " <> Haskell.show _other
+
+instance Arbitrary Result where
+  arbitrary = elements [AWin, BWin, Draw]
 
 -- | A list of probabilities of winning for the first player given
 -- a difference in Elo from -400 to 400. The list is encoded such that

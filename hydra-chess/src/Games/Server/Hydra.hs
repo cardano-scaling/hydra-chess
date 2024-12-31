@@ -18,6 +18,7 @@
 module Games.Server.Hydra where
 
 import Chess.Data (integerFromDatum)
+import Chess.Elo.Score (Result (..), eloGain)
 import Chess.Game (Check (..), Side (..))
 import qualified Chess.Game as Chess
 import Chess.GameState (ChessGame (..), ChessPlay (..))
@@ -73,7 +74,7 @@ import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Encoding as LT
 import Data.Word (Word64)
 import GHC.Generics (Generic)
-import Game.Chess (Chess, ChessEnd (..), GamePlay (..))
+import Game.Chess (Chess, GamePlay (..))
 import Game.Server (
   Content (..),
   FromChain (..),
@@ -297,13 +298,13 @@ withHydraServer logger network me host k = do
               -- FIXME this is wrong and a consequence of the incorrect structure of the
               -- application. The thread receiving messages should transform and transfer them
               -- as fast as possible but not do complicated tx handling
-              triggerEndGame BlackWins
+              triggerEndGame BWin
             Resigned White ->
-              triggerEndGame BlackWins
+              triggerEndGame BWin
             CheckMate Black ->
-              triggerEndGame WhiteWins
+              triggerEndGame AWin
             Resigned Black ->
-              triggerEndGame WhiteWins
+              triggerEndGame AWin
             _other ->
               pure $ GameChanged headId st []
 
@@ -662,12 +663,29 @@ withHydraServer logger network me host k = do
 
       -- find collateral to submit end game tx
       let collateral = findCollateral gameAddress utxo
+          collateralValue = lovelace $ value collateral
 
       gameState <-
         case extractGameState gameScriptAddress utxo of
           Left err ->
             throwIO $ UTxOError $ "Cannot extract game state from: " <> err
           Right game -> pure game
+
+      let
+        ChessGame{players, game = Chess.Game{checkState}} = gameState
+
+        gameResult = case checkState of
+          CheckMate White -> BWin
+          Resigned White -> BWin
+          CheckMate Black -> AWin
+          Resigned Black -> AWin
+          _other -> Draw -- FIXME: there should be an explicit draw in the game state
+        rawEloChange = eloGain (snd $ head players) (snd $ players !! 1) gameResult
+
+        newElo =
+          if pack pkh == pubKeyHashToHex (fst $ head players)
+            then rawEloChange + snd (head players)
+            else (-rawEloChange) + snd (players !! 1)
 
       (gameStateTxIn, (adas, tokens)) <- case extractGameTxIn gameScriptAddress utxo of
         Left err -> do
@@ -704,9 +722,9 @@ withHydraServer logger network me host k = do
               , "--tx-out"
               , eloScriptAddress <> " + " <> stringifyValue (adas, own)
               , "--tx-out-inline-datum-value"
-              , "1000" -- FIXME: should be some change in ELO rating
+              , show newElo
               , "--tx-out"
-              , gameAddress <> "+ 8000000 lovelace" -- FIXME shoudl be value in collateral
+              , gameAddress <> "+ " <> show collateralValue <> " lovelace"
               ]
           else do
             -- construct chess game inline datum
@@ -735,9 +753,9 @@ withHydraServer logger network me host k = do
               , "--tx-out"
               , eloScriptAddress <> " + " <> stringifyValue (2000000, own)
               , "--tx-out-inline-datum-value"
-              , "1000" -- FIXME: should be some change in ELO rating
+              , show newElo
               , "--tx-out"
-              , gameAddress <> "+ 8000000 lovelace" -- FIXME shoudl be value in collateral
+              , gameAddress <> "+ " <> show collateralValue <> " lovelace"
               ]
 
       submitNewTx cnx args skFile

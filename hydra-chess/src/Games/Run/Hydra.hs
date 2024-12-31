@@ -54,7 +54,6 @@ import Data.ByteArray (convert)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as Hex
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Short as SBS
 import Data.Function (on)
 import qualified Data.List as List
 import Data.Maybe (isJust)
@@ -558,15 +557,9 @@ findGameScriptFile :: Network -> IO FilePath
 findGameScriptFile network = do
   configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
   let gameScriptFile = configDir </> "game-script.plutus"
-  BS.writeFile gameScriptFile (validatorToBytes Contract.validatorScript)
+  let cur = currencyFromBytes $ scriptHashToBytes Token.validatorHash
+  BS.writeFile gameScriptFile (validatorToBytes $ Contract.validatorScript (cur, ELO.validatorHash cur))
   pure gameScriptFile
-
-makeGameFlatFile :: Network -> IO FilePath
-makeGameFlatFile network = do
-  configDir <- getXdgDirectory XdgConfig ("hydra-node" </> networkDir network)
-  let gameFlatFile = configDir </> "game-script.flat"
-  BS.writeFile gameFlatFile (SBS.fromShort Contract.validatorScript)
-  pure gameFlatFile
 
 mkTxIn :: FullUTxO -> String
 mkTxIn FullUTxO{txIn} = Text.unpack txIn

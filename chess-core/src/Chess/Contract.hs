@@ -12,31 +12,43 @@ module Chess.Contract where
 
 import PlutusTx.Prelude
 
+import Chess.Elo.Score (Result (..), eloGain)
 import Chess.Game (Check (..), Game (..), Move, Side (..), apply)
 import Chess.GameState (ChessGame (..), ChessPlay (..))
 import Chess.Plutus (ValidatorType, scriptValidatorHash, wrapValidator)
+import PlutusCore.Version (plcVersion100)
 import PlutusLedgerApi.V2 (
+  Credential (ScriptCredential),
+  CurrencySymbol,
   Datum (Datum),
   OutputDatum (..),
+  PubKeyHash (..),
   ScriptContext (..),
   ScriptHash (..),
   SerialisedScript,
+  TokenName (..),
+  TxInfo (..),
+  TxOut (..),
+  addressCredential,
+  fromBuiltinData,
   getDatum,
+  getValue,
   serialiseCompiledCode,
   toBuiltinData,
   txInfoSignatories,
   txOutDatum,
  )
 import PlutusLedgerApi.V2.Contexts (findDatumHash, getContinuingOutputs)
-import PlutusTx (CompiledCode)
+import PlutusTx (CompiledCode, unsafeApplyCode)
 import PlutusTx qualified
-import qualified Games.Run.Cardano as outputs
+import PlutusTx.AssocMap qualified as Map
+import PlutusTx.List qualified as List
 
-validator :: ChessGame -> ChessPlay -> ScriptContext -> Bool
-validator chess play scriptContext =
+validator :: (CurrencySymbol, ScriptHash) -> ChessGame -> ChessPlay -> ScriptContext -> Bool
+validator scripts chess play scriptContext =
   case play of
     ChessMove move -> checkMove move chess scriptContext
-    End -> checkGameEnd chess scriptContext
+    End -> checkGameEnd scripts chess scriptContext
 {-# INLINEABLE validator #-}
 
 checkMove :: Move -> ChessGame -> ScriptContext -> Bool
@@ -92,34 +104,79 @@ checkGameOutput ctx d =
 {-# INLINEABLE checkGameOutput #-}
 
 -- | Verifies game is ending correctly and players get rewarded accordingly.
-checkGameEnd :: ChessGame -> ScriptContext -> Bool
-checkGameEnd ChessGame{game = Game{checkState}} ctx =
+checkGameEnd :: (CurrencySymbol, ScriptHash) -> ChessGame -> ScriptContext -> Bool
+checkGameEnd scripts ChessGame{players, game = Game{checkState}} ctx =
   case checkState of
-    CheckMate side -> checkEloChange side ctx
-    Resigned side -> checkEloChange side ctx
+    CheckMate side -> checkEloChange scripts side players ctx
+    Resigned side -> checkEloChange scripts side players ctx
     _other -> trace "game not ended" False
-
--- | Verifies that transaction correctly reports Elo changes to player's
--- game tokens' outputs.
---
--- We need to:
--- * Find the outputs containing each player's token
--- * Check these outputs pay to the Elo script (we need its hash...)
--- * Compute the Elo change Δ for winner and loser
--- * Check the new datum for each of these outputs is the old Elo +/- Δ
--- * Check the outputs' value contains the game token + 2₳ deposits
-checkEloChange :: Side -> ScriptContext -> Bool
-checkEloChange _side _ctx = True
 {-# INLINEABLE checkGameEnd #-}
 
-compiledValidator :: CompiledCode ValidatorType
+-- | Verifies that transaction correctly reports Elo changes to player's
+-- game tokens' output.
+--
+-- We need to:
+-- * Find the output paying to elo script
+-- * Check which player it's for
+-- * Compute the Elo change Δ for winner and loser
+-- * Check the new datum for the outputs is the old Elo +/- Δ depending on win/lose
+-- * Check the output's value contains the game token + 2₳ deposits
+checkEloChange :: (CurrencySymbol, ScriptHash) -> Side -> [(PubKeyHash, Integer)] -> ScriptContext -> Bool
+checkEloChange (pid, eloScriptHash) losingSide players ctx =
+  case players of
+    [w, b] ->
+      fromMaybe False $ checkEloChangeForPlayer w b
+    [_] -> True -- FIXME: check Elo is not changed
+    _other -> trace "invalid number of players" False
+ where
+  checkEloChangeForPlayer (whitePkh, whiteElo) (blackPkh, blackElo) = do
+    TxOut{txOutValue, txOutDatum} <- scriptOutput
+    toks <- Map.lookup pid (getValue txOutValue)
+    pkh <- case Map.toList toks of
+      [(p, v)] | v == 1 -> Just p
+      _other -> Nothing
+    actualElo <- getActualElo txOutDatum >>= fromBuiltinData
+    side <- playerSide $ PubKeyHash $ unTokenName pkh
+    case side of
+      White -> Just $ actualElo == whiteElo + eloChange
+      Black -> Just $ actualElo == blackElo + eloChange
+   where
+    eloChange =
+      eloGain
+        whiteElo
+        blackElo
+        ( if losingSide == White
+            then BWin
+            else AWin
+        )
+    playerSide pkh
+      | pkh == whitePkh = Just White
+      | pkh == blackPkh = Just Black
+      | otherwise = Nothing
+
+    getActualElo txOutDatum =
+      case txOutDatum of
+        OutputDatum newElo -> Just $ getDatum newElo
+        _other -> Nothing
+
+    isEloScript TxOut{txOutAddress} = addressCredential txOutAddress == ScriptCredential eloScriptHash
+
+    scriptOutput = List.find isEloScript txInfoOutputs
+
+  ScriptContext{scriptContextTxInfo = TxInfo{txInfoOutputs}} = ctx
+{-# INLINEABLE checkEloChange #-}
+
+compiledValidator :: CompiledCode ((CurrencySymbol, ScriptHash) -> ValidatorType)
 compiledValidator =
-  $$(PlutusTx.compile [||wrap validator||])
+  $$(PlutusTx.compile [||wrap . validator||])
  where
   wrap = wrapValidator @ChessGame @ChessPlay
 
-validatorScript :: SerialisedScript
-validatorScript = serialiseCompiledCode compiledValidator
+validatorScript :: (CurrencySymbol, ScriptHash) -> SerialisedScript
+validatorScript scripts =
+  serialiseCompiledCode
+    $ compiledValidator
+    `unsafeApplyCode` PlutusTx.liftCode plcVersion100 scripts
 
-validatorHash :: ScriptHash
-validatorHash = scriptValidatorHash validatorScript
+validatorHash :: (CurrencySymbol, ScriptHash) -> ScriptHash
+validatorHash = scriptValidatorHash . validatorScript

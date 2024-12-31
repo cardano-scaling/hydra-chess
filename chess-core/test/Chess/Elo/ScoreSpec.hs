@@ -35,6 +35,3 @@ instance Arbitrary Elo where
   shrink (Elo x)
     | x > 1000 = Elo <$> shrink x
     | otherwise = []
-
-instance Arbitrary Result where
-  arbitrary = elements [AWin, BWin, Draw]
