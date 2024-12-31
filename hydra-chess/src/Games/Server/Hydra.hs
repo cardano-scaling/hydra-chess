@@ -172,6 +172,7 @@ data InvalidMove
   = InvalidMove Chess.IllegalMove
   | NoSingleOwnGameToken GameTokens GameTokens
   | UTxOError Text
+  | NoGameFound
   deriving (Eq, Show, Exception)
 
 data GameLog
@@ -641,11 +642,23 @@ withHydraServer logger network me host k = do
 
   endGame :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> UTxOs -> IO ()
   endGame events cnx utxo =
-    try go >>= \case
-      Left (NoSingleOwnGameToken own their) -> pure ()
-      Left other -> putStrLn $ "Error building end game tx:  " <> show other
-      Right{} -> pure ()
+    tryEndGame 3
    where
+    tryEndGame :: Int -> IO ()
+    tryEndGame 0 = pure ()
+    tryEndGame n =
+      try go >>= \case
+        Left (NoSingleOwnGameToken own their) -> pure ()
+        Left NoGameFound -> pure ()
+        Left other -> putStrLn $ "Error building end game tx:  " <> show other
+        Right{} -> do
+          -- FIXME: The idea is that even if we apparently succeeded, the submitted txs can
+          -- still fail asynchronoulsy in Hydra and we are kind of stuck, so let's try again
+          -- after some delay until we get one or the other above exceptions.
+          -- This is stupid just like quite a few things in this app but it is what it is for
+          -- now
+          threadDelay 1000000
+          tryEndGame (n - 1)
     go = do
       -- retrieve needed tools and keys
       (skFile, vkFile) <- findKeys Game network
@@ -689,7 +702,7 @@ withHydraServer logger network me host k = do
 
       (gameStateTxIn, (adas, tokens)) <- case extractGameTxIn gameScriptAddress utxo of
         Left err -> do
-          throwIO $ UTxOError $ "Cannot extract game value: " <> err
+          throwIO $ NoGameFound -- game probably closed?
         Right v -> pure v
 
       let (own, their) = List.partition (\(_, pk, _, _) -> pk == pkh) tokens
