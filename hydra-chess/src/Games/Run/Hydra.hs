@@ -468,7 +468,7 @@ registerGameToken logger network gameVkFile = do
         , "--tx-in-collateral"
         , txin
         , "--tx-out"
-        , eloScriptAddress <> " + 10000000 lovelace + " <> token
+        , eloScriptAddress <> " + 2000000 lovelace + " <> token
         , "--tx-out-inline-datum-value"
         , "1000"
         , "--mint"
