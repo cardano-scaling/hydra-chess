@@ -139,7 +139,7 @@ checkEloChange (pid, eloScriptHash) losingSide players ctx =
     side <- playerSide $ PubKeyHash $ unTokenName pkh
     case side of
       White -> Just $ traceIfFalse "invalid Elo change value" $ actualElo == whiteElo + eloChange
-      Black -> Just $ traceIfFalse "invalid Elo change value" $ actualElo == blackElo + eloChange
+      Black -> Just $ traceIfFalse "invalid Elo change value" $ actualElo == blackElo - eloChange
    where
     eloChange =
       eloGain
