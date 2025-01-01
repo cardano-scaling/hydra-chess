@@ -398,7 +398,7 @@ hasToken logger network token eloScriptAddress = do
           [] -> Nothing
  where
   checkTokenUTxO utxo@FullUTxO{value = Coins{lovelace}, inlineDatum} =
-    lovelace >= 10_000_000 && valueContains (Text.pack token) utxo && isJust inlineDatum
+    lovelace >= 2_000_000 && valueContains (Text.pack token) utxo && isJust inlineDatum
 
 getUTxOFor :: Logger -> Network -> String -> IO UTxOs
 getUTxOFor logger network address = do
