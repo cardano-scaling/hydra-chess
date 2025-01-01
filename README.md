@@ -28,7 +28,8 @@ This project started with [Black Jack](https://en.wikipedia.org/wiki/Blackjack) 
 * [ ] Provide pre-compiled binaries
 * [ ] Web UI
 * [ ] Allow user to supply own cardano-node and/or hydra-node
-* [ ] Manage ELO score on-chain
+* [x] Manage ELO score on-chain
+  * [ ] ensure elo script prevents tampering score
 
 # Installation
 

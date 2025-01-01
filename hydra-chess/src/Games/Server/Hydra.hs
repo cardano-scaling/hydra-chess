@@ -825,6 +825,7 @@ withHydraServer logger network me host k = do
 
   sendClose :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> IO ()
   sendClose cnx events = do
+    -- FIXME: should end game if it's not ended? Or prevent if game not ended?
     WS.sendTextData cnx (encode Close)
     timeout
       600_000_000
