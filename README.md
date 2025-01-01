@@ -30,6 +30,8 @@ This project started with [Black Jack](https://en.wikipedia.org/wiki/Blackjack) 
 * [ ] Allow user to supply own cardano-node and/or hydra-node
 * [x] Manage ELO score on-chain
   * [ ] ensure elo script prevents tampering score
+* [ ] Gracefully handle script upgrades (scripts should allow being upgraded)
+* [ ] Provide commands to inspect current state of the game and tokens
 
 # Installation
 
