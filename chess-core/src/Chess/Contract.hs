@@ -127,19 +127,19 @@ checkEloChange (pid, eloScriptHash) losingSide players ctx =
     [w, b] ->
       fromMaybe False $ checkEloChangeForPlayer w b
     [_] -> True -- FIXME: check Elo is not changed
-    _other -> trace "invalid number of players" False
+    _other -> traceError "invalid number of players"
  where
   checkEloChangeForPlayer (whitePkh, whiteElo) (blackPkh, blackElo) = do
     TxOut{txOutValue, txOutDatum} <- scriptOutput
     toks <- Map.lookup pid (getValue txOutValue)
     pkh <- case Map.toList toks of
       [(p, v)] | v == 1 -> Just p
-      _other -> Nothing
+      _other -> traceError "missing game token"
     actualElo <- getActualElo txOutDatum >>= fromBuiltinData
     side <- playerSide $ PubKeyHash $ unTokenName pkh
     case side of
-      White -> Just $ actualElo == whiteElo + eloChange
-      Black -> Just $ actualElo == blackElo + eloChange
+      White -> Just $ traceIfFalse "invalid Elo change value" $ actualElo == whiteElo + eloChange
+      Black -> Just $ traceIfFalse "invalid Elo change value" $ actualElo == blackElo + eloChange
    where
     eloChange =
       eloGain
@@ -152,12 +152,12 @@ checkEloChange (pid, eloScriptHash) losingSide players ctx =
     playerSide pkh
       | pkh == whitePkh = Just White
       | pkh == blackPkh = Just Black
-      | otherwise = Nothing
+      | otherwise = traceError "unknown player side"
 
     getActualElo txOutDatum =
       case txOutDatum of
         OutputDatum newElo -> Just $ getDatum newElo
-        _other -> Nothing
+        _other -> traceError "no Elo output datum"
 
     isEloScript TxOut{txOutAddress} = addressCredential txOutAddress == ScriptCredential eloScriptHash
 
