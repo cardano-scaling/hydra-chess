@@ -698,7 +698,7 @@ withHydraServer logger network me host k = do
         newElo =
           if pack pkh == pubKeyHashToHex (fst $ head players)
             then rawEloChange + snd (head players)
-            else (-rawEloChange) + snd (players !! 1)
+            else rawEloChange + snd (players !! 1)
 
       (gameStateTxIn, (adas, tokens)) <- case extractGameTxIn gameScriptAddress utxo of
         Left err -> do
