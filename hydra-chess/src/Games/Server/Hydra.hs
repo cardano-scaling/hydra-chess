@@ -4,10 +4,11 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -25,14 +26,12 @@ import Chess.GameState (ChessGame (..), ChessPlay (..))
 import Chess.Plutus (pubKeyHash, pubKeyHashFromHex, pubKeyHashToHex)
 import qualified Chess.Token as Token
 import Control.Concurrent.Class.MonadSTM (
-  TVar,
   atomically,
   modifyTVar',
   newTVarIO,
   readTVar,
   readTVarIO,
   retry,
-  writeTVar,
  )
 import Control.Exception (Exception, IOException)
 import Control.Monad (forever, unless, void, when)
@@ -192,88 +191,117 @@ data GameLog
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
+data EventsQueue m e = EventsQueue
+  { publish :: e -> m ()
+  , toggleReplay :: m ()
+  , isReplaying :: m Bool
+  , readAll :: m (Seq e)
+  , waitFor :: forall a. (e -> Maybe a) -> m a
+  }
+
+type ChessQueue = EventsQueue IO (FromChain Chess Hydra)
+
+newEventsQueue :: IO (EventsQueue IO e)
+newEventsQueue = do
+  events <- newTVarIO mempty
+  replaying <- newTVarIO True
+  let publish e = atomically $ modifyTVar' events (|> e)
+      toggleReplay = atomically $ modifyTVar' replaying not
+      isReplaying = readTVarIO replaying
+      readAll = readTVarIO events
+  pure
+    EventsQueue
+      { waitFor = \predicate -> do
+          atomically $ do
+            readTVar events >>= \case
+              -- FIXME: we can actually lose events, if 2 or more events are
+              -- enqueued in the same transaction
+              (_ :|> event) -> maybe retry pure (predicate event)
+              _ -> retry
+      , ..
+      }
+
 withHydraServer :: Logger -> Network -> HydraParty -> Host -> (Server Chess.Game Hydra IO -> IO ()) -> IO ()
 withHydraServer logger network me host k = do
   logWith logger GameServerStarting
-  events <- newTVarIO mempty
-  replaying <- newTVarIO True
+  queue <- newEventsQueue
   withClient logger host $ \cnx ->
-    withAsync (pullEventsFromWs events cnx replaying) $ \thread ->
+    withAsync (pullEventsFromWs queue cnx) $ \thread ->
       let server =
             Server
-              { initHead = sendInit cnx events
-              , poll = pollEvents events
-              , play = playGame cnx events
-              , newGame = newGame events cnx
-              , closeHead = sendClose cnx events
+              { initHead = sendInit queue cnx
+              , poll = pollEvents queue
+              , play = playGame queue cnx
+              , newGame = newGame queue cnx
+              , closeHead = sendClose queue cnx
               }
        in do
             link thread
             logWith logger GameServerStarted
             k server
  where
-  pullEventsFromWs :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> TVar IO Bool -> IO ()
-  pullEventsFromWs events cnx replaying = do
+  pollEvents :: ChessQueue -> Integer -> Integer -> IO (Indexed Chess Hydra)
+  pollEvents queue (fromInteger -> start) (fromInteger -> count) = do
+    history <- readAll queue
+    let indexed =
+          Indexed
+            { lastIndex = fromIntegral $ length history
+            , events = toList $ Seq.take count $ Seq.drop start history
+            }
+    pure indexed
+
+  pullEventsFromWs :: ChessQueue -> Connection -> IO ()
+  pullEventsFromWs queue cnx = do
     forever $
       WS.receiveData cnx >>= \dat -> do
         case eitherDecode' dat of
           Left err ->
-            atomically $ modifyTVar' events (|> OtherMessage (Content $ pack err))
+            publish queue $ OtherMessage (Content $ pack err)
           Right (Response{output}) -> case output of
             HeadIsInitializing headId parties -> do
-              atomically (modifyTVar' events (|> HeadCreated headId parties))
-              isReplaying <- readTVarIO replaying
-              unless isReplaying $ sendCommit cnx events host 100 headId
+              publish queue $ HeadCreated headId parties
+              replaying <- isReplaying queue
+              unless replaying $ sendCommit queue cnx host 100 headId
             HeadIsAborted headId _ ->
-              atomically (modifyTVar' events (|> HeadClosed headId))
+              publish queue $ HeadClosed headId
             HeadIsFinalized headId _ ->
-              atomically (modifyTVar' events (|> HeadClosed headId))
+              publish queue $ HeadClosed headId
             Committed headId party _utxo ->
-              atomically (modifyTVar' events (|> FundCommitted headId party ()))
+              publish queue $ FundCommitted headId party ()
             HeadIsOpen headId utxo -> do
-              isReplaying <- readTVarIO replaying
-              atomically (modifyTVar' events (|> HeadOpened headId))
+              replaying <- isReplaying queue
+              publish queue $ HeadOpened headId
             CommandFailed request ->
               logWith logger $ HydraCommandFailed request
             PostTxOnChainFailed{postTxError} ->
-              atomically $
-                modifyTVar'
-                  events
-                  ( |>
-                      OtherMessage
-                        ( Content $
-                            decodeUtf8 $
-                              LBS.toStrict $
-                                encode postTxError
-                        )
-                  )
+              publish queue $ OtherMessage (Content $ pack $ asString postTxError)
             Greetings{} ->
               -- the hydra server is ready to receive commands so this
               -- means we have stopped replay
-              atomically $ writeTVar replaying False
+              toggleReplay queue
             HeadIsClosed{} -> pure ()
             ReadyToFanout headId ->
-              atomically (modifyTVar' events (|> HeadClosing headId))
+              publish queue $ HeadClosing headId
             GetUTxOResponse{utxo} ->
-              atomically (modifyTVar' events (|> CollectUTxO (JsonContent $ toJSON utxo)))
+              publish queue $ CollectUTxO (JsonContent $ toJSON utxo)
             RolledBack{} -> pure ()
             TxValid{} -> pure ()
             TxInvalid{validationError} ->
-              atomically $ modifyTVar' events (|> OtherMessage (Content $ pack $ asString validationError))
+              publish queue $ OtherMessage (Content $ pack $ asString validationError)
             SnapshotConfirmed{headId, snapshot = Snapshot{utxo}} -> do
-              isReplaying <- readTVarIO replaying
-              handleGameState events cnx headId utxo isReplaying
+              replaying <- isReplaying queue
+              handleGameState queue cnx headId utxo replaying
             PeerConnected{peer} ->
               logWith logger $ ConnectedTo peer
             PeerDisconnected{peer} ->
               logWith logger $ DisconnectedFrom peer
             InvalidInput{reason, input} ->
-              atomically (modifyTVar' events (|> OtherMessage (JsonContent $ toJSON output)))
+              publish queue $ OtherMessage (JsonContent $ toJSON output)
   -- TODO
   -- handle NotEnoughFuel message from hydra
 
-  handleGameState :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> HeadId -> UTxOs -> Bool -> IO ()
-  handleGameState events cnx headId utxo isReplaying = do
+  handleGameState :: ChessQueue -> Connection -> HeadId -> UTxOs -> Bool -> IO ()
+  handleGameState queue cnx headId utxo isReplaying = do
     -- find output paying to game script address
     gameScriptFile <- findGameScriptFile network
     gameScriptAddress <- getScriptAddress gameScriptFile network
@@ -285,12 +313,12 @@ withHydraServer logger network me host k = do
         -- by a change in the underlying contract or game data structure
         pure ()
       Right st ->
-        processGameState st events cnx headId utxo isReplaying
-          >>= \e -> atomically $ modifyTVar' events (|> e)
+        processGameState st queue cnx headId utxo isReplaying
+          >>= \e -> publish queue e
 
-  processGameState st@ChessGame{game} events cnx headId utxo isReplaying =
+  processGameState st@ChessGame{game} queue cnx headId utxo isReplaying =
     let triggerEndGame winner = do
-          unless isReplaying $ void $ async $ endGame events cnx utxo
+          unless isReplaying $ void $ async $ endGame queue cnx utxo
           pure $ GameEnded headId st winner
      in if game == Chess.initialGame
           then pure (GameStarted headId st [])
@@ -372,12 +400,12 @@ withHydraServer logger network me host k = do
 
         logWith logger $ SubmittedTransaction signedFile
 
-  sendInit :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> [Text] -> IO HeadId
-  sendInit cnx events _unusedParties = do
+  sendInit :: ChessQueue -> Connection -> [Text] -> IO HeadId
+  sendInit queue cnx _unusedParties = do
     WS.sendTextData cnx (encode Init)
     timeout
       600_000_000
-      ( waitFor events $ \case
+      ( waitFor queue $ \case
           HeadCreated headId _ -> Just headId
           _ -> Nothing
       )
@@ -385,8 +413,8 @@ withHydraServer logger network me host k = do
         (throwIO $ ServerException "Timeout (10m) waiting for head Id")
         (\headId -> pure headId)
 
-  sendCommit :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> Host -> Integer -> HeadId -> IO ()
-  sendCommit cnx events Host{host, port} _amount headId =
+  sendCommit :: ChessQueue -> Connection -> Host -> Integer -> HeadId -> IO ()
+  sendCommit queue cnx Host{host, port} _amount headId =
     try go >>= \case
       Left (err :: CommitError) -> logWith logger err
       Right{} -> pure ()
@@ -498,7 +526,7 @@ withHydraServer logger network me host k = do
 
       timeout
         60_000_000
-        ( waitFor events $ \case
+        ( waitFor queue $ \case
             FundCommitted _ party _ | party == me -> Just ()
             _ -> Nothing
         )
@@ -517,14 +545,14 @@ withHydraServer logger network me host k = do
   --
   -- The reason we need the deposit input is to provide an ADA-only collateral input
   -- which is required by the ledger rules
-  newGame :: TVar IO (Seq (FromChain g Hydra)) -> Connection -> IO ()
-  newGame events connection = do
+  newGame :: ChessQueue -> Connection -> IO ()
+  newGame queue connection = do
     cardanoCliExe <- findCardanoCliExecutable
     (skFile, vkFile) <- findKeys Game network
     gameAddress <- getVerificationKeyAddress vkFile network
     socketPath <- findSocketPath network
 
-    utxo <- collectUTxO events connection
+    utxo <- collectUTxO queue connection
 
     let collateral = findCollateral gameAddress utxo
         collateralValue = lovelace $ value collateral
@@ -569,9 +597,9 @@ withHydraServer logger network me host k = do
 
     submitNewTx connection args skFile
 
-  playGame :: Connection -> TVar IO (Seq (FromChain Chess Hydra)) -> GamePlay Chess -> IO ()
-  playGame cnx events (GamePlay End) = pure ()
-  playGame cnx events (GamePlay play@(ChessMove move)) =
+  playGame :: ChessQueue -> Connection -> GamePlay Chess -> IO ()
+  playGame _ cnx (GamePlay End) = pure ()
+  playGame queue cnx (GamePlay play@(ChessMove move)) =
     try go >>= \case
       Left (InvalidMove illegal) -> putStrLn $ "Invalid move:  " <> show illegal
       Left other -> putStrLn $ "Error looking for data:  " <> show other
@@ -589,7 +617,7 @@ withHydraServer logger network me host k = do
       gameScriptAddress <- getScriptAddress gameScriptFile network
 
       -- retrieve current UTxO state
-      utxo <- collectUTxO events cnx
+      utxo <- collectUTxO queue cnx
 
       -- find collateral to submit play tx
       let collateral = findCollateral gameAddress utxo
@@ -640,8 +668,8 @@ withHydraServer logger network me host k = do
 
       submitNewTx cnx args skFile
 
-  endGame :: TVar IO (Seq (FromChain Chess Hydra)) -> Connection -> UTxOs -> IO ()
-  endGame events cnx utxo =
+  endGame :: ChessQueue -> Connection -> UTxOs -> IO ()
+  endGame queue cnx utxo =
     tryEndGame 3
    where
     tryEndGame :: Int -> IO ()
@@ -823,31 +851,21 @@ withHydraServer logger network me host k = do
         elo = fromMaybe (error $ "No datum to extract Elo from " <> asString utxo) (inlineDatum >>= integerFromDatum)
      in (pubKeyHashFromHex pkh, elo)
 
-  sendClose :: Connection -> TVar IO (Seq (FromChain g Hydra)) -> IO ()
-  sendClose cnx events = do
+  sendClose :: ChessQueue -> Connection -> IO ()
+  sendClose queue cnx = do
     -- FIXME: should end game if it's not ended? Or prevent if game not ended?
     WS.sendTextData cnx (encode Close)
     timeout
       600_000_000
-      ( waitFor events $ \case
+      ( waitFor queue $ \case
           HeadClosing headId -> Just ()
           _ -> Nothing
       )
       >>= maybe (throwIO $ ServerException "Timeout (10m) waiting for head Id") (const $ WS.sendTextData cnx (encode Fanout))
 
-  pollEvents :: TVar IO (Seq (FromChain g Hydra)) -> Integer -> Integer -> IO (Indexed g Hydra)
-  pollEvents events (fromInteger -> start) (fromInteger -> count) = do
-    history <- readTVarIO events
-    let indexed =
-          Indexed
-            { lastIndex = fromIntegral $ length history
-            , events = toList $ Seq.take count $ Seq.drop start history
-            }
-    pure indexed
-
   -- Collect only TxIn
-  collectUTxO :: TVar IO (Seq (FromChain g Hydra)) -> Connection -> IO UTxOs
-  collectUTxO events cnx = go 10
+  collectUTxO :: ChessQueue -> Connection -> IO UTxOs
+  collectUTxO queue cnx = go 10
    where
     go :: Int -> IO UTxOs
     go 0 = throwIO $ ServerException "Timeout (10s) waiting for GetUTxO"
@@ -855,7 +873,7 @@ withHydraServer logger network me host k = do
       WS.sendTextData cnx (encode GetUTxO)
       timeout
         10_000_000
-        ( waitFor events $ \case
+        ( waitFor queue $ \case
             CollectUTxO (JsonContent txt) ->
               case fromJSON txt of
                 Success utxo -> Just utxo
@@ -863,13 +881,6 @@ withHydraServer logger network me host k = do
             _ -> Nothing
         )
         >>= maybe (go (n - 1)) pure
-
-waitFor :: TVar IO (Seq (FromChain g Hydra)) -> (FromChain g Hydra -> Maybe a) -> IO a
-waitFor events predicate = do
-  atomically $ do
-    readTVar events >>= \case
-      (_ :|> event) -> maybe retry pure (predicate event)
-      _ -> retry
 
 data Request = Init | Close | Fanout | GetUTxO | NewTx Value
   deriving stock (Eq, Show, Generic)
