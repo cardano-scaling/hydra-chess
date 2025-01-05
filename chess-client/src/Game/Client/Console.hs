@@ -1,6 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -32,7 +33,7 @@ import Data.Text (Text, pack)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Void (Void)
-import Game.Client.IO (Command (..), Err (..), HasIO (..))
+import Game.Client.IO (Command (..), Err (..), HasIO (..), Output (..))
 import System.Exit (ExitCode (ExitSuccess))
 import System.IO.Error (isEOFError)
 import Text.Megaparsec (Parsec, empty, many, parse, sepBy, takeRest, try)
@@ -59,16 +60,21 @@ helpText =
     , " * quit : Quits hydra-chess gracefully (Ctrl-D or Ctrl-C also works)"
     ]
 
-mkImpureIO :: (Show output) => Parser command -> HasIO command output IO
+mkImpureIO :: Parser command -> HasIO command Output IO
 mkImpureIO parser =
   HasIO
     { input
-    , output = print
+    , output
     , problem = print
     , exit = throwIO ExitSuccess
     , prompt = putStr "> "
     }
  where
+  output = \case
+    Bye -> putStrLn "Bye"
+    Ok msg -> putStrLn $ Text.unpack msg
+    Ko msg -> putStrLn $ "Error: " <> Text.unpack msg
+
   input = handle eofException $ do
     line <- Text.getLine
     if line == ""
