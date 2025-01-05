@@ -39,39 +39,40 @@ library
     Games.Terminal
 
   build-depends:
-    , aeson
-    , ansi-terminal
-    , base
-    , base16-bytestring
-    , bytestring
-    , cardano-binary
-    , cborg
-    , chess-client
-    , chess-core
-    , containers
-    , cryptonite
-    , directory
-    , filepath
-    , generic-random
-    , http-client
-    , http-conduit
-    , http-types
-    , io-classes
-    , megaparsec
-    , memory
-    , mtl
-    , optparse-applicative
-    , process
-    , QuickCheck
-    , random
-    , scientific
-    , serialise
-    , tar
-    , text
-    , unix
-    , websockets
-    , zip-archive
-    , zlib
+                  QuickCheck
+                , aeson
+                , aeson-pretty
+                , ansi-terminal
+                , base
+                , base16-bytestring
+                , bytestring
+                , cardano-binary
+                , cborg
+                , chess-client
+                , chess-core
+                , containers
+                , cryptonite
+                , directory
+                , filepath
+                , generic-random
+                , http-client
+                , http-conduit
+                , http-types
+                , io-classes
+                , megaparsec
+                , memory
+                , mtl
+                , optparse-applicative
+                , process
+                , random
+                , scientific
+                , serialise
+                , tar
+                , text
+                , unix
+                , websockets
+                , zip-archive
+                , zlib
 
 executable hychess
   ghc-options:      -Wall -Werror -threaded -rtsopts -with-rtsopts=-N

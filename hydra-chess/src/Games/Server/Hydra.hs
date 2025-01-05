@@ -55,6 +55,7 @@ import Data.Aeson (
   (.:),
   (.=),
  )
+import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Types (FromJSON (..))
 import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
@@ -64,7 +65,7 @@ import Data.Foldable (toList)
 import Data.IORef (atomicWriteIORef, newIORef, readIORef)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust, maybeToList)
 import Data.Sequence (Seq ((:|>)), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text, pack, unpack)
@@ -89,7 +90,7 @@ import Games.Logging (Logger, logWith)
 import Games.Run.Cardano (findCardanoCliExecutable, findSocketPath)
 import Games.Run.Hydra (
   HydraLog (..),
-  KeyRole (Game),
+  KeyRole (..),
   checkCollateralUTxO,
   checkGameTokenIsAvailable,
   deserialiseFromEnvelope,
@@ -98,8 +99,11 @@ import Games.Run.Hydra (
   findGameScriptFile,
   findKeys,
   findProtocolParametersFile,
+  findPubKeyHash,
   getScriptAddress,
+  getUTxOFor,
   getVerificationKeyAddress,
+  hasToken,
   mkTempFile,
  )
 import Games.Server.JSON (
@@ -191,6 +195,26 @@ data GameLog
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
+data Configuration = Configuration
+  { cardanoCliExe :: FilePath
+  , socketPath :: FilePath
+  , protocolParametersFile :: FilePath
+  , gameScriptFile :: FilePath
+  , gameScriptAddress :: Text
+  , eloScriptFile :: FilePath
+  , eloScriptAddress :: Text
+  , fundVk :: FilePath
+  , fundAddress :: Text
+  , fundUTxO :: UTxOs
+  , gameVk :: FilePath
+  , gameAddress :: Text
+  , gameUTxO :: UTxOs
+  , ownToken :: Text
+  , tokenUTxO :: UTxOs
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
 data EventsQueue m e = EventsQueue
   { publish :: e -> m ()
   , toggleReplay :: m ()
@@ -234,12 +258,58 @@ withHydraServer logger network me host k = do
               , play = playGame queue cnx
               , newGame = newGame queue cnx
               , closeHead = sendClose queue cnx
+              , getConfiguration
               }
        in do
             link thread
             logWith logger GameServerStarted
             k server
  where
+  getConfiguration :: IO Text
+  getConfiguration = do
+    cardanoCliExe <- findCardanoCliExecutable
+    socketPath <- findSocketPath network
+    protocolParametersFile <- findProtocolParametersFile network
+    gameScriptFile <- findGameScriptFile network
+    gameScriptAddress <- pack <$> getScriptAddress gameScriptFile network
+    eloScriptFile <- findEloScriptFile network
+    eloScriptAddress <- getScriptAddress eloScriptFile network
+
+    (_, fundVk) <- findKeys Fuel network
+    fundAddress <- getVerificationKeyAddress fundVk network
+    fundUTxO <- getUTxOFor logger network fundAddress
+
+    (_, gameVk) <- findKeys Game network
+    gameAddress <- getVerificationKeyAddress gameVk network
+    gameUTxO <- getUTxOFor logger network gameAddress
+
+    pkh <- findPubKeyHash gameVk
+    let ownToken = "1 " <> Token.validatorHashHex <.> pkh
+
+    tokenUTxO <- UTxOs . maybeToList <$> hasToken logger network ownToken eloScriptAddress
+
+    pure
+      $ LT.toStrict
+        . LT.decodeUtf8
+      $ encodePretty
+        Configuration
+          { cardanoCliExe
+          , socketPath
+          , protocolParametersFile
+          , gameScriptFile
+          , gameScriptAddress
+          , eloScriptFile
+          , eloScriptAddress = pack eloScriptAddress
+          , fundVk
+          , fundAddress = pack fundAddress
+          , fundUTxO
+          , gameVk
+          , gameAddress = pack gameAddress
+          , gameUTxO
+          , ownToken = pack ownToken
+          , tokenUTxO
+          }
+
   pollEvents :: ChessQueue -> Integer -> Integer -> IO (Indexed Chess Hydra)
   pollEvents queue (fromInteger -> start) (fromInteger -> count) = do
     history <- readAll queue

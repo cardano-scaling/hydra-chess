@@ -55,7 +55,7 @@ loop handle io = do
     Right cmd -> handle cmd >>= output io >> loop handle io
 
 handleCommand :: forall g c m. (Game g, IsChain c, Monad m) => Server g c m -> Command -> m Output
-handleCommand Server{initHead, play, closeHead, newGame} = \case
+handleCommand Server{initHead, play, closeHead, newGame, getConfiguration} = \case
   Help ->
     pure $ Ok helpText
   NewTable peers ->
@@ -68,4 +68,6 @@ handleCommand Server{initHead, play, closeHead, newGame} = \case
     newGame >> pure (Ok "new game")
   Stop ->
     closeHead >> pure (Ok "closed")
+  Config ->
+    getConfiguration <&> Ok
   Quit -> pure Bye

@@ -27,9 +27,6 @@ import GHC.Generics (Generic)
 import Generic.Random (genericArbitrary, uniform)
 import Test.QuickCheck (Arbitrary (arbitrary), Gen, arbitraryPrintableChar, listOf, vectorOf)
 
-data Message = Ping
-  deriving (Eq, Show)
-
 newtype ServerException = ServerException {reason :: Text}
   deriving (Eq, Show)
 
@@ -120,6 +117,8 @@ data Server g c m = Server
   -- Takes the first event to retrieve and the maximum number of elements to send back.
   -- It will return 0 or more messages, depending on what's available, and the index
   -- of the last known message.
+  , getConfiguration :: m Text
+  -- ^ Retrieve the current configuration of the server.
   }
 
 data FromChain g c

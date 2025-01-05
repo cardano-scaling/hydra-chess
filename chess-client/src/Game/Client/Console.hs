@@ -55,6 +55,7 @@ helpText =
     , "       > play d2-d4"
     , "       Displays updated board upon validation of the move"
     , " * stop : Stops the current game session, closing the Hydra head (can take a while)"
+    , " * config : Display internal information about the current configuration"
     , " * quit : Quits hydra-chess gracefully (Ctrl-D or Ctrl-C also works)"
     ]
 
@@ -87,17 +88,25 @@ readInput parser = first (pack . show) . parse parser ""
 inputParser :: Parser Command
 inputParser =
   quitParser
-    <|> newTableParser
+    <|> initParser
     <|> playParser
     <|> newGameParser
     <|> stopParser
+    <|> helpParser
+    <|> configParser
 
 quitParser :: Parser Command
 quitParser = (try (string "q") <|> string "quit") $> Quit
 
-newTableParser :: Parser Command
-newTableParser = do
-  string "newTable" >> spaceConsumer
+helpParser :: Parser Command
+helpParser = (try (string "h") <|> try (string "?") <|> string "help") $> Help
+
+configParser :: Parser Command
+configParser = (try (string "c") <|> string "config") $> Config
+
+initParser :: Parser Command
+initParser = do
+  string "init" >> spaceConsumer
   NewTable <$> sepBy identifier space
 
 playParser :: Parser Command
